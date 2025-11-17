@@ -1,0 +1,330 @@
+\def\paperversiondraft{draft}
+\def\paperversionnormal{normal}
+
+% If the paper version is set to 'normal' mode keep it,
+% otherwise set it to 'draft' mode.
+\ifx\paperversion\paperversionnormal
+\else
+  \def\paperversion{draft}
+\fi
+
+\documentclass[review, anonymous, acmsmall]{acmart}
+
+\def\acmversionanonymous{anonymous}
+\def\acmversionjournal{journal}
+\def\acmversionnone{none}
+
+\makeatletter
+\if@ACM@anonymous
+  \def\acmversion{anonymous}
+\else
+  \def\acmversion{journal}
+\fi
+\makeatother
+
+\usepackage{colortbl}
+
+% 'draftonly' environment
+\usepackage{environ}
+\ifx\paperversion\paperversiondraft
+\newenvironment{draftonly}{}{}
+\else
+\NewEnviron{draftonly}{}
+\fi
+
+% Most PL conferences are edited by conference-publishing.com. Follow their
+% advice to add the following packages.
+%
+% The first enables the use of UTF-8 as character encoding, which is the
+% standard nowadays. The second ensures the use of font encodings that support
+% accented characters etc. (Why should I use this?). The mictotype package
+% enables certain features 'to­wards ty­po­graph­i­cal per­fec­tion
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{microtype}
+
+\usepackage{xargs}
+\usepackage{lipsum}
+\usepackage{xparse}
+\usepackage{xifthen, xstring}
+\usepackage{xspace}
+\usepackage{marginnote}
+\usepackage{etoolbox}
+\usepackage[acronym,shortcuts]{glossaries}
+\usepackage{amsmath}
+\usepackage{thmtools} % required for autoref to lemmas
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{hyphenat}
+\usepackage[shortcuts]{extdash}
+
+\input{tex/setup.tex}
+\input{tex/acm.tex}
+
+\usemintedstyle{colorful}
+
+% Newer versions of minted require the 'customlexer' argument for custom lexers
+% whereas older versions require the '-x' to be passed via the command line.
+\makeatletter
+\ifcsdef{MintedExecutable}
+{
+  % minted v3
+  \newminted[mlir]{tools/lexers/MLIRLexer.py:MLIRLexerOnlyOps}{mathescape}
+  \newminted[xdsl]{tools/lexers/MLIRLexer.py:MLIRLexer}{mathescape, style=murphy}
+  \newminted[lean4]{tools/lexers/Lean4Lexer.py:Lean4Lexer}{mathescape}
+}
+{
+  \ifcsdef{minted@optlistcl@quote}
+  {
+    \newminted[mlir]{tools/lexers/MLIRLexer.py:MLIRLexerOnlyOps}{customlexer, mathescape}
+    \newminted[xdsl]{tools/lexers/MLIRLexer.py:MLIRLexer}{customlexer, mathescape, style=murphy}
+    \newminted[lean4]{tools/lexers/Lean4Lexer.py:Lean4Lexer}{customlexer, mathescape}
+  }
+  {
+    \newminted[mlir]{tools/lexers/MLIRLexer.py:MLIRLexerOnlyOps -x}{mathescape}
+    \newminted[xdsl]{tools/lexers/MLIRLexer.py:MLIRLexer -x}{mathescape, style=murphy}
+    \newminted[lean4]{tools/lexers/Lean4Lexer.py:Lean4Lexer -x}{mathescape}
+  }
+}
+\makeatother
+
+% We use the following color scheme
+%
+% This scheme is both print-friendly and colorblind safe for
+% up to four colors (including the red tones makes it not
+% colorblind safe any more)
+%
+% https://colorbrewer2.org/#type=qualitative&scheme=Paired&n=4
+
+\definecolor{pairedNegOneLightGray}{HTML}{cacaca}
+\definecolor{pairedNegTwoDarkGray}{HTML}{827b7b}
+\definecolor{pairedOneLightBlue}{HTML}{a6cee3}
+\definecolor{pairedTwoDarkBlue}{HTML}{1f78b4}
+\definecolor{pairedThreeLightGreen}{HTML}{b2df8a}
+\definecolor{pairedFourDarkGreen}{HTML}{33a02c}
+\definecolor{pairedFiveLightRed}{HTML}{fb9a99}
+\definecolor{pairedSixDarkRed}{HTML}{e31a1c}
+
+\createtodoauthor{rieser}{pairedOneLightBlue}
+\createtodoauthor{grosser}{pairedTwoDarkBlue}
+\createtodoauthor{authorThree}{pairedThreeLightGreen}
+\createtodoauthor{authorFour}{pairedFourDarkGreen}
+\createtodoauthor{authorFive}{pairedFiveLightRed}
+\createtodoauthor{authorSix}{pairedSixDarkRed}
+
+\newacronym{ir}{IR}{Intermediate Representation}
+
+\graphicspath{{./images/}}
+
+% Define macros that are used in this paper
+%
+% We require all macros to end with a delimiter (by default {}) to enusure
+% that LaTeX adds whitespace correctly.
+\makeatletter
+\newcommand\requiredelimiter[2][########]{%
+  \ifdefined#2%
+    \def\@temp{\def#2#1}%
+    \expandafter\@temp\expandafter{#2}%
+  \else
+    \@latex@error{\noexpand#2undefined}\@ehc
+  \fi
+}
+\@onlypreamble\requiredelimiter
+\makeatother
+
+\newcommand\newdelimitedcommand[2]{
+\expandafter\newcommand\csname #1\endcsname{#2}
+\expandafter\requiredelimiter
+\csname #1 \endcsname
+}
+
+\newdelimitedcommand{toolname}{Tool}
+
+\usepackage{booktabs}
+\newcommand{\ra}[1]{\renewcommand{\arraystretch}{#1}}
+
+\usepackage[verbose]{newunicodechar}
+\newunicodechar{₁}{\ensuremath{_1}}
+\newunicodechar{₂}{\ensuremath{_2}}
+\newunicodechar{∀}{\ensuremath{\forall}}
+\newunicodechar{α}{\ensuremath{\alpha}}
+\newunicodechar{β}{\ensuremath{\beta}}
+
+% \circled command to print a colored circle.
+% \circled{1} pretty-prints "(1)"
+% This is useful to refer to labels that are embedded within figures.
+\DeclareRobustCommand{\circled}[2][]{%
+    \ifthenelse{\isempty{#1}}%
+        {\circledbase{pairedOneLightBlue}{#2}}%
+        {\autoref{#1}: \hyperref[#1]{\circledbase{pairedOneLightBlue}{#2}}}%
+}
+
+% listings don't write "Listing" in autoref without this.
+\providecommand*{\listingautorefname}{Listing}
+\renewcommand{\sectionautorefname}{Section}
+\renewcommand{\subsectionautorefname}{Section}
+\renewcommand{\subsubsectionautorefname}{Section}
+
+\begin{document}
+
+%% Title information
+\title[Short Title]{Full Title}       %% [Short Title] is optional;
+                                      %% when present, will be used in
+                                      %% header instead of Full Title.
+\subtitle{Subtitle}                   %% \subtitle is optional
+
+
+%% Author information
+%% Contents and number of authors suppressed with 'anonymous'.
+%% Each author should be introduced by \author, followed by
+%% \authornote (optional), \orcid (optional), \affiliation, and
+%% \email.
+%% An author may have multiple affiliations and/or emails; repeat the
+%% appropriate command.
+%% Many elements are not rendered, but should be provided for metadata
+%% extraction tools.
+\author{Jeremias Rieser}
+\authornote{with author1 note}          %% \authornote is optional;
+                                      %% can be repeated if necessary
+\orcid{0009-0005-0218-9999}             %% \orcid is optional
+\affiliation{
+  \position{Position1}
+  \department{Department1}              %% \department is recommended
+  \institution{Ludwig-Maximilians-University of Munich}            %% \institution is required
+  \streetaddress{Street1 Address1}
+  \city{City1}
+  \state{State1}
+  \postcode{Post-Code1}
+  \country{Germany}
+}
+\email{jeremias.last1@inst1.edu}          %% \email is recommended
+%\affiliation{
+%  \position{Position2b}
+%  \department{Department2b}             %% \department is recommended
+%  \institution{Technical University of Munich}           %% \institution is required
+%  \streetaddress{Street3b Address2b}
+%  \city{City2b}
+%  \state{State2b}
+%  \postcode{Post-Code2b}
+%  \country{Germany}
+%}
+%\email{first2.last2@inst2b.org}    
+
+\author{First2 Last2}
+\authornote{with author2 note}          %% \authornote is optional;
+                                      %% can be repeated if necessary
+\orcid{nnnn-nnnn-nnnn-nnnn}             %% \orcid is optional
+\affiliation{
+  \position{Position2a}
+  \department{Department2a}             %% \department is recommended
+  \institution{Ludwig-Maximilians-University of Munich}           %% \institution is required
+  \streetaddress{Street2a Address2a}
+  \city{City2a}
+  \state{State2a}
+  \postcode{Post-Code2a}
+  \country{Germany}
+}
+\email{first2.last2@inst2a.com}         %% \email is recommended
+     %% \email is recommended
+
+\begin{abstract}
+% An abstract should consist of six main sentences:
+%  1. Introduction. In one sentence, what’s the topic?
+%  2. State the problem you tackle.
+%  3. Summarize (in one sentence) why nobody else has adequately answered the research question yet.
+%  4. Explain, in one sentence, how you tackled the research question.
+%  5. In one sentence, how did you go about doing the research that follows from your big idea.
+%  6. As a single sentence, what’s the key impact of your research?
+
+% (http://www.easterbrook.ca/steve/2010/01/how-to-write-a-scientific-abstract-in-six-easy-steps/)
+
+  \emph{Open science practices} (look for the osf standards. This means either an availability statement or the data / code implicitly provided). To what extent do researcher actually implement OSF-practices in their publications? Do institutions explicitly value these principles in their hiring process and research conduct?
+  
+  [In Psychology and education...]
+  We conducted an analysis assessing the usage of open science statements in [N] published articles alongside the prevalence of open science \emph{expectations(?)} in job postings for professorships of german universities. We found that bla ... 
+\end{abstract}
+
+% Only add ACM notes and keywords in camera ready version
+% Drop citations and footnotes in draft and blind mode.
+\ifx\acmversion\acmversionanonymous
+\settopmatter{printacmref=false} % Removes citation information below abstract
+\renewcommand\footnotetextcopyrightpermission[1]{} % removes footnote with conference information in first column
+\fi
+\ifx\acmversion\acmversionjournal
+%% 2012 ACM Computing Classification System (CSS) concepts
+%% Generate at 'http://dl.acm.org/ccs/ccs.cfm'.
+\begin{CCSXML}
+<ccs2012>
+<concept>
+<concept_id>10011007.10011006.10011008</concept_id>
+<concept_desc>Software and its engineering~General programming languages</concept_desc>
+<concept_significance>500</concept_significance>
+</concept>
+<concept>
+<concept_id>10003456.10003457.10003521.10003525</concept_id>
+<concept_desc>Social and professional topics~History of programming languages</concept_desc>
+<concept_significance>300</concept_significance>
+</concept>
+</ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Software and its engineering~General programming languages}
+\ccsdesc[300]{Social and professional topics~History of programming languages}
+%% End of generated code
+
+%% Keywords
+%% comma separated list
+\keywords{keyword1, keyword2, keyword3}
+\fi
+
+%% \maketitle
+%% Note: \maketitle command must come after title commands, author
+%% commands, abstract environment, Computing Classification System
+%% environment and commands, and keywords command.
+\maketitle
+
+\section{Introduction}
+
+\section{Analysis}
+
+\rieser{Should we provide a sample of keywords here?}
+
+\subsection{Job postings for professorships}
+
+We analyzed job postings for professorships from the \emph{Academic Job Posting Service of the German Association of University Professors and Lecturers} \cite{noauthor_academic_nodate} pubilished between January 2024 and [tbd.] 2025. Out of a total of $N_A = 295$ postings, $18$ of them explicitly mentioned keywords related to open science. While all $18$ described open science as desirable, only [k=6]\rieser{ double check this} required a formal statement. Exactly $1$ was a specifically created "W2 Open Science" professorship. We identified these postings by matching keywords, their mangled variants, and partial sentences and extracting their containing sentences; the final classification however was based on manual review of the corresponding paragraphs. \rieser{I need to add to the code here to make sure that all keywords are hit and all of them provide a paragraph. Else the desirable <-> requirement stat might be wrong.}
+
+\subsection{Publications}
+
+We analysed [N=?] open access publications from the open-alex index \cite{priem_openalex_2022}. If there was an open access pdf available, we downloaded it using the Unpaywall service. We used the open alex API to build an index of papers, which we filtered for pdf urls. We used a batch service downloading batches of [k=?] and then processing these batches using \emph{grobid} \cite{GROBID} to obtain a structured text document.
+
+
+\section{Implementation}
+\label{sec:implementation}
+
+\section{Related Work}
+
+
+
+\section{Conclusion}
+
+%% Acknowledgments
+\begin{acks}                            %% acks environment is optional
+                                        %% contents suppressed with 'anonymous'
+  %% Commands \grantsponsor{<sponsorID>}{<name>}{<url>} and
+  %% \grantnum[<url>]{<sponsorID>}{<number>} should be used to
+  %% acknowledge financial support and will be used by metadata
+  %% extraction tools.
+  This material is based upon work supported by the
+  \grantsponsor{GS100000001}{National Science
+    Foundation}{http://dx.doi.org/10.13039/100000001} under Grant
+  No.~\grantnum{GS100000001}{nnnnnnn} and Grant
+  No.~\grantnum{GS100000001}{mmmmmmm}.  Any opinions, findings, and
+  conclusions or recommendations expressed in this material are those
+  of the author and do not necessarily reflect the views of the
+  National Science Foundation.
+\end{acks}
+
+%% Bibliography
+\bibliography{references}
+
+\end{document}
