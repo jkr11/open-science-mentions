@@ -17,6 +17,10 @@ PDF_CACHE = os.path.join(DB_DIR, "pdf_cache")
 os.makedirs(PDF_CACHE, exist_ok=True)
 
 
+def log(msg):
+  print(f"\033[92m {msg}")
+
+
 def get_pages(per_page: int = 50, max_pages: int = 10) -> Generator[Dict[str, Any], None, None]:
   page = 1
   for _ in range(max_pages):
@@ -184,6 +188,58 @@ def batch_download_works(conn: sqlite3.Connection, batch_size: int = 20) -> bool
 
   conn.commit()
   return is_end
+
+
+class Batch:
+  def __init__(self, conn: sqlite3.Connection, rows):
+    self.conn = conn
+    self.rows = rows
+    self.results = []
+
+  def download_pdfs(self):
+    cur = self.conn.cursor()
+    for work_id, doi, primary, best, other_json in self.rows:
+      urls = [u for u in [primary, best] if u and u != "placeholder"]
+      if other_json:
+        urls.extend(json.loads(other_json))
+
+      result = download_first_pdf(urls)
+      downloaded_at = datetime.datetime.now(datetime.timezone.utc)
+
+      if result:
+        url_used, sha, path = result
+        cur.execute(
+          """
+            INSERT OR REPLACE INTO pdfs 
+            (work_id, pdf_sha256, pdf_path, pdf_url_used, downloaded_at, processed, deleted)
+            VALUES (?, ?, ?, ?, ?, 0, 0)
+          """,
+          (work_id, sha, path, url_used, downloaded_at),
+        )
+        self.results.append((work_id, True))
+      else:
+        self.results.append((work_id, False))
+
+      cur.execute("UPDATE works SET download_attempted=1 WHERE work_id=?", (work_id,))
+    self.conn.commit()
+
+
+def batch_iterator(conn: sqlite3.Connection, batch_size=20) -> Generator[Batch, Any, None]:
+  cur = conn.cursor()
+  while True:
+    cur.execute(
+      """
+        SELECT work_id, doi, primary_pdf_url, best_pdf_url, other_pdf_urls
+        FROM works
+        WHERE download_attempted = 0
+        LIMIT ?
+      """,
+      (batch_size,),
+    )
+    rows = cur.fetchall()
+    if not rows:
+      break
+    yield Batch(conn, rows)
 
 
 if __name__ == "__main__":
