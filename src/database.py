@@ -1,10 +1,14 @@
 import sqlite3
 import os
 
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+DB_DIR = os.path.join(BASE_DIR, "db")
+DB_PATH = os.path.join(DB_DIR, "index.db")
+
 os.makedirs("db", exist_ok=True)
 
-conn_index = sqlite3.connect("db/index.db")
-conn_index.execute("""
+conn = sqlite3.connect(DB_PATH)
+conn.execute("""
 CREATE TABLE IF NOT EXISTS works (
     work_id TEXT PRIMARY KEY,
     doi TEXT,
@@ -17,10 +21,9 @@ CREATE TABLE IF NOT EXISTS works (
     other_pdf_urls TEXT
 )
 """)
-conn_index.commit()
+conn.commit()
 
-conn_pdfs = sqlite3.connect("db/pdfs.db")
-conn_pdfs.execute("""
+conn.execute("""
 CREATE TABLE IF NOT EXISTS pdfs (
     work_id TEXT PRIMARY KEY,
     pdf_sha256 TEXT,
@@ -32,4 +35,6 @@ CREATE TABLE IF NOT EXISTS pdfs (
     deleted BOOLEAN DEFAULT 0
 )
 """)
-conn_pdfs.commit()
+
+conn.commit()
+conn.close()

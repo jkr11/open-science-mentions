@@ -5,6 +5,7 @@ pdf_work
 *.pdf
 db/
 *.db
+test_data/
 
 ### PYTHON ###
 # Byte-compiled / optimized / DLL files
