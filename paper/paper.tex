@@ -168,10 +168,10 @@
 \begin{document}
 
 %% Title information
-\title[Short Title]{Full Title}       %% [Short Title] is optional;
+\title[Short Title]{Adoption of Open Science Practices in Psychology and Education Research}       %% [Short Title] is optional;
                                       %% when present, will be used in
                                       %% header instead of Full Title.
-\subtitle{Subtitle}                   %% \subtitle is optional
+%\subtitle{Subtitle}                   %% \subtitle is optional
 
 
 %% Author information
@@ -197,7 +197,7 @@
   \postcode{Post-Code1}
   \country{Germany}
 }
-\email{jeremias.last1@inst1.edu}          %% \email is recommended
+\email{jeremias.rieser@tum.de}          %% \email is recommended
 %\affiliation{
 %  \position{Position2b}
 %  \department{Department2b}             %% \department is recommended
@@ -238,10 +238,10 @@
 
 % (http://www.easterbrook.ca/steve/2010/01/how-to-write-a-scientific-abstract-in-six-easy-steps/)
 
-  \emph{Open science practices} (look for the osf standards. This means either an availability statement or the data / code implicitly provided). To what extent do researcher actually implement OSF-practices in their publications? Do institutions explicitly value these principles in their hiring process and research conduct?
+  \emph{Open science practices} like data and code availability are (what exactly). To what extent do researcher actually implement OSF-practices in their publications? Do institutions explicitly value these principles in their hiring process and research conduct?
   
-  [In Psychology and education...]
-  We conducted an analysis assessing the usage of open science statements in [N] published articles alongside the prevalence of open science \emph{expectations(?)} in job postings for professorships of german universities. We found that bla ... 
+  We examine open science practices within the fields of Psychology and Education. Specifically,
+  we analyse the frequency of open science statements in [N] published articles alongside the prevalence of open science \emph{expectations} and \emph{requirements} in job advertisments for professorships at German universities. We found that bla ... 
 \end{abstract}
 
 % Only add ACM notes and keywords in camera ready version
@@ -301,11 +301,20 @@ We analysed [N=?] open access publications from the open-alex index \cite{priem_
 \section{Implementation}
 \label{sec:implementation}
 
+We extracted all \emph{works} \rieser{explain what this means or phrase differently} from the OpenAlex \cite{priem_openalex_2022} corpus that were tagged as beloning to the fields Psychology or Education. \rieser{This is not done yet} From these records, we retained the ones that included at least one linked open access PDF. To manage this dataset, we implemented a database consisting of two tables: an \textbf{index} table containing the metadata for each entry, and a \textbf{pdfs} table storing information about the retrieved documents.
+
+Because of hardware limitations and the large volume of file \rieser{How many GBs?}, we implemented a batched processing pipeline. This pipeline retrieves and processes PDFs in batches of size $k=200$, so we only have to store at most $k$ PDFs simultaneously. After processing, the results are joined onto the bibliographic data from the index table for further analysis.
+
 \section{Related Work}
 
+We could mention datastet here, even if we adapt it. Otherwise, fexrep \cite{wu_predicting_2021}.
 
 
 \section{Conclusion}
+
+\section*{Data Availability Statement}
+
+Our code, proofs and evaluations are available on GitHub \cite{author_software} or on osf or on zenodo??.
 
 %% Acknowledgments
 \begin{acks}                            %% acks environment is optional

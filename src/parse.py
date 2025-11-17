@@ -1,4 +1,10 @@
 import requests
+from requests.exceptions import (
+  Timeout,
+  ConnectionError,
+  HTTPError,
+  RequestException,
+)
 import json
 from dotenv import load_dotenv
 import os
@@ -6,7 +12,7 @@ from typing import Generator, List, Dict, Any, Optional, Tuple
 import hashlib
 import datetime
 import sqlite3
-
+import subprocess
 from database import DB_PATH, DB_DIR
 
 load_dotenv()
@@ -144,6 +150,26 @@ def download_first_pdf(
   return None
 
 
+def download_wget(url: str, timeout: int = 10):
+  tmp_path = os.path.join(PDF_CACHE, "tmp_download.pdf")
+  cmd = [
+    "wget",
+    "-O",
+    tmp_path,
+    "--timeout",
+    str(timeout),
+    "--tries==3",
+    "--max-redirect=5",
+    "--quiet",
+    url,
+  ]
+  result = subprocess.run(cmd)
+  if result.returncode != 0:
+    os.remove(tmp_path)
+    return None
+  return tmp_path
+
+
 def batch_download_works(conn: sqlite3.Connection, batch_size: int = 20) -> bool:
   cur = conn.cursor()
 
@@ -232,6 +258,7 @@ def batch_iterator(conn: sqlite3.Connection, batch_size=20) -> Generator[Batch, 
         SELECT work_id, doi, primary_pdf_url, best_pdf_url, other_pdf_urls
         FROM works
         WHERE download_attempted = 0
+        ORDER BY work_id
         LIMIT ?
       """,
       (batch_size,),
