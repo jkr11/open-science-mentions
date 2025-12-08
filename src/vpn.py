@@ -4,7 +4,10 @@ import time
 # import asyncio
 
 SERVER_POOL = [("us", "nyc"), ("de", "fra"), ("se", "sto"), ("nl", "ams")]
+# only ("de", "dus") works for sage, so reserve it for that.
+# Do we need to add more vpns?
 
+# TODO: is browser location/timezone important for this?
 
 def rotate_vpn_server():
   try:

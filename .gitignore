@@ -3,9 +3,18 @@
 .env
 pdf_work
 *.pdf
+*.tei
+*.html
+*.xml
+/data/
 db/
 *.db
 test_data/
+results/
+.vscode
+testdata/
+.python-version
+*downloads/
 
 ### PYTHON ###
 # Byte-compiled / optimized / DLL files

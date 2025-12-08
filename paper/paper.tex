@@ -107,7 +107,7 @@
 
 \createtodoauthor{rieser}{pairedOneLightBlue}
 \createtodoauthor{grosser}{pairedTwoDarkBlue}
-\createtodoauthor{authorThree}{pairedThreeLightGreen}
+\createtodoauthor{jerem}{pairedThreeLightGreen}
 \createtodoauthor{authorFour}{pairedFourDarkGreen}
 \createtodoauthor{authorFive}{pairedFiveLightRed}
 \createtodoauthor{authorSix}{pairedSixDarkRed}
@@ -240,8 +240,8 @@
 
   \emph{Open science practices} like data and code availability are (what exactly). To what extent do researcher actually implement OSF-practices in their publications? Do institutions explicitly value these principles in their hiring process and research conduct?
   
-  We examine open science practices within the fields of Psychology and Education. Specifically,
-  we analyse the frequency of open science statements in [N] published articles alongside the prevalence of open science \emph{expectations} and \emph{requirements} in job advertisments for professorships at German universities. We found that bla ... 
+  We examine open science practices within the top 10 journals by $h_5$-index in Special Education, Education and Psychology. Specifically,
+  we analyse the frequency of \emph{open science statements} and \emph{data and code}-availability in [N] published open access articles alongside the prevalence of open science \emph{expectations} and \emph{requirements} in job advertisments for professorships at German universities. We found that bla ... 
 \end{abstract}
 
 % Only add ACM notes and keywords in camera ready version
@@ -291,19 +291,23 @@
 
 \subsection{Job postings for professorships}
 
-We analyzed job postings for professorships from the \emph{Academic Job Posting Service of the German Association of University Professors and Lecturers} \cite{noauthor_academic_nodate} pubilished between January 2024 and [tbd.] 2025. Out of a total of $N_A = 295$ postings, $18$ of them explicitly mentioned keywords related to open science. While all $18$ described open science as desirable, only [k=6]\rieser{ double check this} required a formal statement. Exactly $1$ was a specifically created "W2 Open Science" professorship. We identified these postings by matching keywords, their mangled variants, and partial sentences and extracting their containing sentences; the final classification however was based on manual review of the corresponding paragraphs. \rieser{I need to add to the code here to make sure that all keywords are hit and all of them provide a paragraph. Else the desirable <-> requirement stat might be wrong.}
+We analysed job postings for professorships from the \emph{Academic Job Posting Service of the German Association of University Professors and Lecturers} \cite{noauthor_academic_nodate} pubilished between January 2024 and [tbd.] 2025. Out of a total of $N_A = 295$ postings, $18$ of them explicitly mentioned keywords related to open science. While all $18$ described open science as desirable, only [k=6]\rieser{ double check this} required a formal statement. Exactly $1$ was a specifically created "W2 Open Science" professorship \rieser{Should we analyse Subject and department? Does it matter if 4 of these were from the same university? Does English <-> German matter?}. We identified these postings by matching keywords, their mangled variants, and partial sentences and extracting their containing sentences; the final classification however was based on manual review of the corresponding paragraphs. \rieser{I need to add to the code here to make sure that all keywords are hit and all of them provide a paragraph. Else the desirable <-> requirement stat might be wrong.}
 
 \subsection{Publications}
 
-We analysed [N=?] open access publications from the open-alex index \cite{priem_openalex_2022}. If there was an open access pdf available, we downloaded it using the Unpaywall service. We used the open alex API to build an index of papers, which we filtered for pdf urls. We used a batch service downloading batches of [k=?] and then processing these batches using \emph{grobid} \cite{GROBID} to obtain a structured text document.
+%We analysed [N=?] open access publications from the open-alex index \cite{priem_openalex_2022}. If there was an open access pdf available, we downloaded it using the Unpaywall service. We used the open alex API to build an index of papers, which we filtered for pdf urls. We used a batch service downloading batches of [k=?] pdfs and then processing these batches using \emph{grobid} \cite{GROBID} to obtain a structured text document. In this structured text database, we run a regex search for "[Open science statements, etc.]" \rieser{Provide keyword table here too? Or a reference to it?}. Simultaneously, we run datastet to find potential locations of datasets. \rieser{We could also devise a score here, only has a dataset, has data and code and has both and a statement. I think this is too hard to find?}
+
+We analysed [N=?] open access publications from Journals [J1,J2,...] filtered by the OpenAlex index \cite{priem_openalex_2022}. In this process, we checked for the presence of either/or an open science statement, a data availability statement, an open access dataset or open access code. \rieser{Should we devise a score here? So dataset + statement + code gives highest score.} Based on this, we found that [$k_1$ out of N] included a dataset, [$k_2$ out of N] included their code, [$k_3$ out of N] included an open science statement of data availability statement. [$k_4$ out of N] contained all $3$.  
+
+We analysed the top 20 Journals in education and special education. For a full list see \nameref{app:listofjournals}. We filtered these journals using the OpenAlex index \cite{priem_openalex_2022}.
 
 
 \section{Implementation}
 \label{sec:implementation}
 
-We extracted all \emph{works} \rieser{explain what this means or phrase differently} from the OpenAlex \cite{priem_openalex_2022} corpus that were tagged as beloning to the fields Psychology or Education. \rieser{This is not done yet} From these records, we retained the ones that included at least one linked open access PDF. To manage this dataset, we implemented a database consisting of two tables: an \textbf{index} table containing the metadata for each entry, and a \textbf{pdfs} table storing information about the retrieved documents.
+We extracted all \emph{works} \rieser{explain what this means or phrase differently} from the OpenAlex \cite{priem_openalex_2022} corpus that were tagged as belonging to the fields Psychology or Education. \rieser{This is not done yet} From these records, we retained the ones that included at least one linked open access PDF. To manage this dataset, we implemented a database consisting of two tables: an \textbf{index} table containing the metadata for each entry, and a \textbf{pdfs} table storing information about the retrieved documents.
 
-Because of hardware limitations and the large volume of file \rieser{How many GBs?}, we implemented a batched processing pipeline. This pipeline retrieves and processes PDFs in batches of size $k=200$, so we only have to store at most $k$ PDFs simultaneously. After processing, the results are joined onto the bibliographic data from the index table for further analysis.
+Because of hardware limitations and the large volume of file \rieser{How many GBs?}, we implemented a batched processing pipeline. This pipeline retrieves and processes PDFs in batches of size $k=200$. After processing, the results are joined onto the bibliographic data from the index table for further analysis. Before moving onto the next batch, the pdfs are deleted and marked as downloaded and/or processed in the \textbf{pdfs}-table.
 
 \section{Related Work}
 
@@ -312,9 +316,48 @@ We could mention datastet here, even if we adapt it. Otherwise, fexrep \cite{wu_
 
 \section{Conclusion}
 
+\section*{Appendix}
+\subsection*{List of Journals}
+\label{app:listofjournals}
+
+\begin{table}[h]
+\centering
+\caption{List of journals analysed, with ISSNs and OpenAlex IDs, ranked by cite(googlescholaretc)}
+\begin{tabular}{|l | l | l | l | l|}
+\hline
+\# & Name & Issn & IssnO & OpenAlexId \\ \hline
+1 & International Journal of Inclusive Education & 1360-3116 & 1464-5173 &  \\ \hline
+2 & European Journal of Special Needs Education & 0885-6257 & 1469-591X & s136622136 \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{table}[h!]
+\centering
+\caption{List of Psychology Journals analysed, with ISSNs and OpenAlex IDs, ranked by cite(googlescholaretc)}
+\begin{tabular}{|l|l|l|l|l|l|l|}
+\hline
+Rank & Name & Issn & IssnO & OpenAlexId & NumOpenAccess & PctOfTotal \\ \hline
+1 & Frontiers in Psychology & 1664-1078 &  & s9692511 & 48290 & 99.6 \\ \hline
+2 & Perspectives on Psychological Science & 1745-6916 & 1745-6924 & s27228949 & 509 & 34.0 \\ \hline
+3 & Trends in Cognitive Sciences & 1364-6613 & 1879-307X & s192051125 & 1097 & 25.8 \\ \hline
+4 & Current Psychology & 1046-1310 & 1936-4733 & s203585231 \\ \hline
+5 & Current Opinion in Psychology \\ \hline
+6 & Personality and Individual Differences \\ \hline
+7 & Clinical Psychology Review \\ \hline
+8 & Journal of Applied Psychology \\ \hline
+9 & Journal of Personality and Social Psychology \\ \hline
+10 & Educational Psychology Review \\ \hline
+\end{tabular}
+\end{table}
+
+
+
+
+
+
 \section*{Data Availability Statement}
 
-Our code, proofs and evaluations are available on GitHub \cite{author_software} or on osf or on zenodo??.
+Our code, data and evaluations are available on GitHub \cite{author_software} \cite{author_software2} or on osf or on zenodo??.
 
 %% Acknowledgments
 \begin{acks}                            %% acks environment is optional
