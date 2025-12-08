@@ -1,9 +1,10 @@
 import requests
-from database import DB_DIR
+from database import DB_DIR, DB_PATH
 from dotenv import load_dotenv
 from typing import List, Generator, Any
 import os
 import sqlite3
+import json
 
 env = load_dotenv()
 
@@ -11,7 +12,7 @@ EMAIL_ADRESS = os.getenv("EMAIL_ADRESS") or "ui@openalex.org"
 
 OPEN_ALEX_API_URL = "https://api.openalex.org/works"
 
-INDEX_DB = os.path.join(DB_DIR, "opealex_jsonl")
+INDEX_DB = os.path.join(DB_DIR, "openalex_jsonl")
 
 PSYCH_JOURNALS = ["s9692511", "s27228949"]
 
@@ -20,7 +21,8 @@ def get_journal_by_id(
   journal_ids: List[str], per_page: int, min_year: int
 ) -> Generator[Any, None, None]:
   cursor = "*"
-
+  if isinstance(journal_ids, str):
+    journal_ids = [journal_ids]
   while True:
     params = {
       "cursor": cursor,
@@ -57,9 +59,6 @@ def get_journal_by_id(
       break
 
 
-DATABASE_NAME = "pipeline_status.db"
-
-
 def extract_pdf_locations(work: dict) -> dict[str, list[Any]]:
   primary = work.get("primary_location", {}).get("pdf_url")
   best = work.get("best_oa_location", {}).get("pdf_url")
@@ -68,45 +67,49 @@ def extract_pdf_locations(work: dict) -> dict[str, list[Any]]:
   pdf_links = [best] + [primary] + other_urls
   return {"pdf_links": list(set(pdf_links))}
 
+
 # TODO: write some extractors for openalex statements to remove https etc...
+
 
 def insert_work_metadata(work: dict[str, Any]) -> None:
   """Inserts a single OpenAlex work's core metadata into the database."""
   pdf_locations = extract_pdf_locations(work)
 
-  journal_name = "placeholderName"
-  journal_id = "placeholderId"
+  primary_loc = work.get("primary_location", {})
+  source_info = primary_loc.get("source", {})
+  journal_id = source_info.get("id")
+  journal_name = source_info.get("display_name")
+  print(f"Inserting: {work['doi']}")
   try:
-    with sqlite3.connect(DATABASE_NAME) as conn:
+    with sqlite3.connect(DB_PATH) as conn:
       cursor = conn.cursor()
 
       cursor.execute(
         """
-          INSERT OR IGNORE INTO works (
-            openalex_id, journal_id, journal_name, doi, publication_year, oa_urls
-          ) VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO works (
+          openalex_id, journal_id, journal_name, doi, publication_year, oa_urls
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(openalex_id) DO UPDATE SET
+          journal_id = excluded.journal_id,
+          journal_name = excluded.journal_name,
+          doi = excluded.doi,
+          publication_year = excluded.publication_year,
+          oa_urls = excluded.oa_urls;
         """,
         (
           work.get("id", "N/A").split("/")[-1],
           journal_name,
-          journal_id,
+          journal_id.split("/")[-1],
           work.get("doi", "N/A"),
           work.get("publication_year"),
-          # work.get("open_access", {}).get("oa_url"),
-          pdf_locations,
+          json.dumps(pdf_locations),
         ),
       )
-      conn.commit()
 
   except sqlite3.Error as e:
     print(f"Database error during insert: {e}")
 
 
 if __name__ == "__main__":
-  max = 2
-  i = 0
-  for work in get_journal_by_id([PSYCH_JOURNALS[0]], 1, 2020):
-    if i >= 2:
-      break
-    print(extract_pdf_locations(work))
-    i += 1
+  for work in get_journal_by_id([PSYCH_JOURNALS[0]], 200, 2022):
+    insert_work_metadata(work)

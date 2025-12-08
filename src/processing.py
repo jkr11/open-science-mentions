@@ -8,14 +8,11 @@ def extract_grobid(pdf_path: str, grobid_url: str = "http://localhost:8070") -> 
   with open(pdf_path, "rb") as f:
     files = {"input": f}
     try:
-      resp = requests.post(grobid_url, files=files, timeout=60)
+      resp = requests.post(grobid_url, files=files, timeout=60) 
+      resp.raise_for_status()
     except Exception as e:
       print(f"GROBID request failed: {e}")
       return None
-    if resp.status_code != 200:
-      print(f"GROBID error {resp.status_code}")
-      return None
-
     tei_xml = resp.text
     return tei_xml
 

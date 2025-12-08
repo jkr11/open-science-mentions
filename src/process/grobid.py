@@ -1,7 +1,7 @@
 from grobid_client.grobid_client import GrobidClient
 from pathlib import Path
 
-GROBID_FULL_URL = "http://localhost:8070"  # Usually localhost:8070
+GROBID_FULL_URL = "http://localhost:8070"  # Usually localhost:8070 TODO settings
 
 config_path = Path.cwd() / "configs" / "grobid_config.json"
 

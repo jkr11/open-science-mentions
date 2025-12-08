@@ -8,7 +8,8 @@ if TEST:
   DB_DIR = os.path.join(BASE_DIR, "test_db")
 else:
   DB_DIR = os.path.join(BASE_DIR, "db")
-  DB_PATH = os.path.join(DB_DIR, "index.db")
+
+DB_PATH = os.path.join(DB_DIR, "index.db")
 
 DOWNLOAD_DIR_PDFS = os.path.join(DB_DIR, "pdfs")
 DOWNLOAD_DIR_TEIS = os.path.join(DB_DIR, "teis")
@@ -52,7 +53,7 @@ def setup_pipeline_table():
         pdf_download_status TEXT DEFAULT 'PENDING', -- PENDING, SUCCESS, FAILED
         pdf_local_path TEXT,
         tei_process_status TEXT DEFAULT 'PENDING',
-        tei_local_path TEXT,
+        tei_local_path TEXT
         );
       """)
       conn.commit()

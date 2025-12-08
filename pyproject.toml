@@ -18,3 +18,8 @@ dependencies = [
     "uvicorn>=0.38.0",
     "webdriver-manager>=4.0.2",
 ]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.1.0",
+]

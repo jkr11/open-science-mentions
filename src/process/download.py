@@ -2,9 +2,10 @@ import asyncio
 import time
 import os
 import aiohttp
+import aiofiles
 from pathlib import Path
 from typing import Dict, List, Set, Optional
-
+import time
 from selenium_driverless import webdriver
 from selenium_driverless.types.options import Options
 from fake_useragent import UserAgent
@@ -13,14 +14,26 @@ from vpn import rotate_vpn_server
 
 
 class PDFDownloader:
-  def __init__(self, download_dir: str, headless: bool = False):
+  def __init__(
+    self,
+    download_dir: str,
+    switch_time: int = 600,
+    allow_rotate: bool = True,
+    headless: bool = False,
+  ):
     self.download_dir = download_dir
     self.headless = headless
+    self.time_since_last_init = time.time()
+    self.switch_time = switch_time
     self.browser = None
+    self.allow_rotate = allow_rotate
 
   async def __aenter__(self):
     await self._init_browser()
     return self
+
+  async def __aexit__(self):
+    await self.browser.quit()
 
   def log(self, msg: str) -> None:
     print(f"[{os.getpid()}] {msg}")
@@ -75,21 +88,23 @@ class PDFDownloader:
       return {}
 
   async def rotate(self):
-    self.log("Triggering vpn rotation")
-    if self.browser:
-      try:
-        await self.browser.quit()
-      except Exception as e:
-        self.log(f"Quitting browser failed: {e}")
-      self.browser = None
-    
-    rotate_vpn_server()
-    await asyncio.sleep(1) # TODO
+    if self.allow_rotate:
+      self.log("Triggering vpn rotation")
+      if self.browser:
+        try:
+          await self.browser.quit()
+        except Exception as e:
+          self.log(f"Quitting browser failed: {e}")
+        self.browser = None
 
-    geodata = await self._get_current_ip_geo()
-    await self._init_browser(geodata)
+      rotate_vpn_server()
+      await asyncio.sleep(1)  # TODO
 
-
+      geodata = await self._get_current_ip_geo()
+      await self._init_browser(geodata)
+      self.time_since_last_init = time.time()
+    else:
+      self.log("Rotate disabled")
 
   async def _wait_for_download(
     self, before_files: Set[str], timeout: int = 30
@@ -112,9 +127,26 @@ class PDFDownloader:
 
     return None
 
-  async def download_one(self, url: str) -> str | None:
+  async def download_requests(self, url, filename) -> str | None:
+    try:
+      async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+          response.raise_for_status()
+          async with aiofiles.open(filename, "wb") as f:
+            await f.write(await response.read())
+          self.log(f"[*] SUCEESS: downloaded {url} using request.")
+          return filename
+    except Exception as e:
+      print(f"[x] Error downloading PDF: {e} using requests")
+      return None
+
+  async def download_browser(self, url: str) -> str | None:
     if not self.browser:
       raise RuntimeError("Browser is not initialized.")
+
+    # TODO is this optimal?
+    if time.time() - self.time_since_last_init < self.switch_time:
+      await self.rotate()
 
     self.log(f"[ ] Processing: {url}")
     before_files = set(
@@ -133,17 +165,36 @@ class PDFDownloader:
       self.log(f"Error processing {url}: {e}")
       return None
 
-async def main():
-    batch = [
-        "https://journals.sagepub.com/doi/pdf/10.1177/01626434251372933",
-    ]
-
-    downloader = PDFDownloader(download_dir="testdata/pdfs",headless=False)
+  async def download(self, url, filename):
     try:
-        await downloader._init_browser()
-        await downloader.download_one(batch[0])
-    finally:
-        print("Final")
+      return await self.download_requests(url, filename)
+    except Exception as re:
+      self.log(
+        f"Downlod using requests from {url} failed with {re}, fallback to Browser"
+      )
+      try:
+        await self.download_browser(url)
+      except Exception as be:
+        self.log(f"Exception when downloading with browser: {be}")
+
+  async def run_batch(self, urls):
+    for url in urls:
+      await self.download(url, self.download_dir + f"{url.split('//')[-1]}.pdf")
+
+
+async def main() -> None:
+
+  
+
+  downloader = PDFDownloader(
+    download_dir="testdata/pdfs", allow_rotate=True, headless=True
+  )
+  try:
+    await downloader._init_browser()
+    await downloader.download(batch[0], "testdata/pdfs/test.pdf")
+  finally:
+    print("Final")
+
 
 if __name__ == "__main__":
   asyncio.run(main())
