@@ -1,7 +1,12 @@
+"""
+Setup the tables used in the pipline. We should outsource most of this to (pydantic?) settings.
+"""
+
 import sqlite3
 import os
 
-TEST = True  # Set to false for actual run
+
+TEST = True
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if TEST:
@@ -16,26 +21,6 @@ DOWNLOAD_DIR_TEIS = os.path.join(DB_DIR, "teis")
 
 
 os.makedirs(DB_DIR, exist_ok=True)
-
-
-def mktable():
-  conn = sqlite3.connect(DB_PATH)
-
-  conn.execute("""
-  CREATE TABLE IF NOT EXISTS works (
-    work_id TEXT PRIMARY KEY,
-    doi TEXT,
-    title TEXT,
-    year INTEGER,
-    fetched_at TEXT,
-    download_attempted BOOLEAN DEFAULT 0,
-    primary_pdf_url TEXT,
-    best_pdf_url TEXT,
-    other_pdf_urls TEXT
-)
-  """)
-
-  conn.commit()
 
 
 def setup_pipeline_table():
@@ -62,19 +47,9 @@ def setup_pipeline_table():
     print(f"An error occured during database setup: {e}")
 
 
-# def setup_pdf_table():
-#   conn.execute("""
-#   CREATE TABLE IF NOT EXISTS pdfs (
-#       work_id TEXT PRIMARY KEY,
-#       pdf_sha256 TEXT,
-#       pdf_path TEXT,
-#       pdf_url_used TEXT,
-#       downloaded_at TEXT,
-#       download_error TEXT,
-#       processed BOOLEAN DEFAULT 0,
-#       deleted BOOLEAN DEFAULT 0
-#   )
-#   """)
+TO_TEI_QUERY = """ UPDATE works 
+SET tei_process_status = ?, tei_local_path = ? 
+WHERE openalex_id = ?; """
 
 if __name__ == "__main__":
   setup_pipeline_table()

@@ -15,6 +15,7 @@ results/
 testdata/
 .python-version
 *downloads/
+test_db/
 
 ### PYTHON ###
 # Byte-compiled / optimized / DLL files

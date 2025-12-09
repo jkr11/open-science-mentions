@@ -5,7 +5,7 @@ import aiohttp
 import aiofiles
 from pathlib import Path
 from typing import Dict, List, Set, Optional
-import time
+import hashlib
 from selenium_driverless import webdriver
 from selenium_driverless.types.options import Options
 from fake_useragent import UserAgent
@@ -21,7 +21,8 @@ class PDFDownloader:
     allow_rotate: bool = True,
     headless: bool = False,
   ):
-    self.download_dir = download_dir
+    self.download_dir = Path(download_dir)
+    self.download_dir.mkdir(parents=True, exist_ok=True)
     self.headless = headless
     self.time_since_last_init = time.time()
     self.switch_time = switch_time
@@ -32,8 +33,18 @@ class PDFDownloader:
     await self._init_browser()
     return self
 
-  async def __aexit__(self):
-    await self.browser.quit()
+  async def __aexit__(self, exc_type, exc_value, traceback):
+    if self.browser:
+      try:
+        await self.browser.quit()
+        self.log("[*] Browser closed successfully.")
+      except Exception as e:
+        self.log(f"[x] Failed to close browser: {e}")
+
+    if exc_type is not None:
+      self.log(f"[x] Exception encountered: {exc_value}")
+
+    return
 
   def log(self, msg: str) -> None:
     print(f"[{os.getpid()}] {msg}")
@@ -51,7 +62,7 @@ class PDFDownloader:
       options.add_argument("--headless=new")
 
     prefs = {
-      "download.default_directory": self.download_dir,
+      "download.default_directory": str(self.download_dir.resolve()),
       "plugins.always_open_pdf_externally": False,
       "download.prompt_for_download": False,
       "download.extensions_to_open": "applications/pdf",
@@ -62,7 +73,7 @@ class PDFDownloader:
     # CHECK: Enforce bdownload behavior via CDP
     await self.browser.execute_cdp_cmd(
       "Page.setDownloadBehavior",
-      {"behavior": "allow", "downloadPath": self.download_dir},
+      {"behavior": "allow", "downloadPath": str(self.download_dir.resolve())},
     )
 
     if geodata:
@@ -75,6 +86,7 @@ class PDFDownloader:
         await self.browser.execute_cdp_cmd(
           "Emulation.setTimezoneOverride", {"timezoneId": geodata["timezone"]}
         )
+    self.time_since_last_init = time.time()
 
   async def _get_current_ip_geo(self) -> Dict:
     try:
@@ -88,23 +100,22 @@ class PDFDownloader:
       return {}
 
   async def rotate(self):
-    if self.allow_rotate:
-      self.log("Triggering vpn rotation")
-      if self.browser:
-        try:
-          await self.browser.quit()
-        except Exception as e:
-          self.log(f"Quitting browser failed: {e}")
-        self.browser = None
-
-      rotate_vpn_server()
-      await asyncio.sleep(1)  # TODO
-
-      geodata = await self._get_current_ip_geo()
-      await self._init_browser(geodata)
-      self.time_since_last_init = time.time()
-    else:
+    if not self.allow_rotate:
       self.log("Rotate disabled")
+      return
+    self.log("Triggering vpn rotation")
+    if self.browser:
+      try:
+        await self.browser.quit()
+      except Exception as e:
+        self.log(f"Quitting browser failed: {e}")
+      self.browser = None
+
+    rotate_vpn_server()
+    await asyncio.sleep(1)  # TODO
+
+    geodata = await self._get_current_ip_geo()
+    await self._init_browser(geodata)
 
   async def _wait_for_download(
     self, before_files: Set[str], timeout: int = 30
@@ -127,7 +138,12 @@ class PDFDownloader:
 
     return None
 
-  async def download_requests(self, url, filename) -> str | None:
+  def _hash(self, url: str) -> str:
+    hashed_url = hashlib.sha256(url.encode()).hexdigest()
+    return f"{hashed_url}.pdf"
+
+  async def download_requests(self, url, filename=None) -> str | None:
+    filename = Path(self._hash(url))
     try:
       async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
@@ -142,7 +158,7 @@ class PDFDownloader:
 
   async def download_browser(self, url: str) -> str | None:
     if not self.browser:
-      raise RuntimeError("Browser is not initialized.")
+      await self._init_browser()
 
     # TODO is this optimal?
     if time.time() - self.time_since_last_init < self.switch_time:
@@ -165,36 +181,35 @@ class PDFDownloader:
       self.log(f"Error processing {url}: {e}")
       return None
 
-  async def download(self, url, filename):
-    try:
-      return await self.download_requests(url, filename)
-    except Exception as re:
-      self.log(
-        f"Downlod using requests from {url} failed with {re}, fallback to Browser"
-      )
-      try:
-        await self.download_browser(url)
-      except Exception as be:
-        self.log(f"Exception when downloading with browser: {be}")
+  async def download(self, url: str) -> Optional[str]:
+    filename = self._hash(url)
+    result = await self.download_requests(url, filename)
+    if result:
+      return result
+    self.log(f"Requests failed for {url}, trying browser fallback")
+    return await self.download_browser(url)
 
-  async def run_batch(self, urls):
-    for url in urls:
-      await self.download(url, self.download_dir + f"{url.split('//')[-1]}.pdf")
+  async def run_batch(self, urls: List[str]) -> List[str]:
+    downloaded_paths = []
+    async with self:
+      for url in urls:
+        result = await self.download(url)
+        if result:
+          downloaded_paths.append(result) 
 
-
-async def main() -> None:
-
-  
-
-  downloader = PDFDownloader(
-    download_dir="testdata/pdfs", allow_rotate=True, headless=True
-  )
-  try:
-    await downloader._init_browser()
-    await downloader.download(batch[0], "testdata/pdfs/test.pdf")
-  finally:
-    print("Final")
+    return downloaded_paths         
 
 
-if __name__ == "__main__":
-  asyncio.run(main())
+# async def main() -> None:
+#   downloader = PDFDownloader(
+#     download_dir="testdata/pdfs", allow_rotate=True, headless=True
+#   )
+#   try:
+#     await downloader._init_browser()
+#     await downloader.download(batch[0], "testdata/pdfs/test.pdf")
+#   finally:
+#     print("Final")
+# 
+# 
+# if __name__ == "__main__":
+#   asyncio.run(main())

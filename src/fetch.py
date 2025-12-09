@@ -1,10 +1,8 @@
 import requests
-from database import DB_DIR, DB_PATH
+from database import DB_DIR
 from dotenv import load_dotenv
 from typing import List, Generator, Any
 import os
-import sqlite3
-import json
 
 env = load_dotenv()
 
@@ -13,8 +11,6 @@ EMAIL_ADRESS = os.getenv("EMAIL_ADRESS") or "ui@openalex.org"
 OPEN_ALEX_API_URL = "https://api.openalex.org/works"
 
 INDEX_DB = os.path.join(DB_DIR, "openalex_jsonl")
-
-PSYCH_JOURNALS = ["s9692511", "s27228949"]
 
 
 def get_journal_by_id(
@@ -66,50 +62,3 @@ def extract_pdf_locations(work: dict) -> dict[str, list[Any]]:
   other_urls = [loc.get("pdf_url") for loc in others if loc.get("pdf_url")]
   pdf_links = [best] + [primary] + other_urls
   return {"pdf_links": list(set(pdf_links))}
-
-
-# TODO: write some extractors for openalex statements to remove https etc...
-
-
-def insert_work_metadata(work: dict[str, Any]) -> None:
-  """Inserts a single OpenAlex work's core metadata into the database."""
-  pdf_locations = extract_pdf_locations(work)
-
-  primary_loc = work.get("primary_location", {})
-  source_info = primary_loc.get("source", {})
-  journal_id = source_info.get("id")
-  journal_name = source_info.get("display_name")
-  print(f"Inserting: {work['doi']}")
-  try:
-    with sqlite3.connect(DB_PATH) as conn:
-      cursor = conn.cursor()
-
-      cursor.execute(
-        """
-        INSERT INTO works (
-          openalex_id, journal_id, journal_name, doi, publication_year, oa_urls
-        ) VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(openalex_id) DO UPDATE SET
-          journal_id = excluded.journal_id,
-          journal_name = excluded.journal_name,
-          doi = excluded.doi,
-          publication_year = excluded.publication_year,
-          oa_urls = excluded.oa_urls;
-        """,
-        (
-          work.get("id", "N/A").split("/")[-1],
-          journal_name,
-          journal_id.split("/")[-1],
-          work.get("doi", "N/A"),
-          work.get("publication_year"),
-          json.dumps(pdf_locations),
-        ),
-      )
-
-  except sqlite3.Error as e:
-    print(f"Database error during insert: {e}")
-
-
-if __name__ == "__main__":
-  for work in get_journal_by_id([PSYCH_JOURNALS[0]], 200, 2022):
-    insert_work_metadata(work)

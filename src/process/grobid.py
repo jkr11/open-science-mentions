@@ -1,7 +1,7 @@
 from grobid_client.grobid_client import GrobidClient
 from pathlib import Path
 
-GROBID_FULL_URL = "http://localhost:8070"  # Usually localhost:8070 TODO settings
+GROBID_FULL_URL = "http://127.0.0.1:8070"  # Usually localhost:8070 TODO settings
 
 config_path = Path.cwd() / "configs" / "grobid_config.json"
 
@@ -13,7 +13,7 @@ def process_dir(input_path: str, output_path: str) -> None:
       service="processFulltextDocument",
       input_path=input_path,
       output=output_path,
-      n=20,
+      n=10,
       json_output=True,
     )
   except Exception as e:
