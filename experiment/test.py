@@ -75,7 +75,8 @@ def build_test_set(LIMIT=200):
 
 
 if __name__ == "__main__":
-  build_test_set()
+  # build_test_set()
+  df = pd.read_csv("experiment/test_set_ground_truth.csv")
 
 # asyncio.run(run_example())
 # process_dir(DOWNLOAD_DIR_PDF, DOWNLOAD_DIR_TEI)
