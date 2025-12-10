@@ -9,6 +9,7 @@ import hashlib
 from selenium_driverless import webdriver
 from selenium_driverless.types.options import Options
 from fake_useragent import UserAgent
+from database import DOWNLOAD_DIR_PDFS
 
 from vpn import rotate_vpn_server
 
@@ -21,8 +22,9 @@ class PDFDownloader:
     allow_rotate: bool = True,
     headless: bool = False,
   ):
-    self.download_dir = Path(download_dir)
-    self.download_dir.mkdir(parents=True, exist_ok=True)
+    self.download_dir = download_dir
+    path = Path(self.download_dir)
+    path.mkdir(parents=True, exist_ok=True)
     self.headless = headless
     self.time_since_last_init = time.time()
     self.switch_time = switch_time
@@ -62,7 +64,7 @@ class PDFDownloader:
       options.add_argument("--headless=new")
 
     prefs = {
-      "download.default_directory": str(self.download_dir.resolve()),
+      "download.default_directory": self.download_dir,
       "plugins.always_open_pdf_externally": False,
       "download.prompt_for_download": False,
       "download.extensions_to_open": "applications/pdf",
@@ -73,7 +75,7 @@ class PDFDownloader:
     # CHECK: Enforce bdownload behavior via CDP
     await self.browser.execute_cdp_cmd(
       "Page.setDownloadBehavior",
-      {"behavior": "allow", "downloadPath": str(self.download_dir.resolve())},
+      {"behavior": "allow", "downloadPath": self.download_dir.resolve()},
     )
 
     if geodata:
@@ -99,7 +101,12 @@ class PDFDownloader:
       self.log(f"Failed to fetch IP geo: {e}")
       return {}
 
-  async def rotate(self):
+  async def rotate(self, reinit=True):
+    if not reinit:
+      rotate_vpn_server()
+      await asyncio.sleep(1)
+      self.time_since_last_init = time.time()
+      return
     if not self.allow_rotate:
       self.log("Rotate disabled")
       return
@@ -143,7 +150,9 @@ class PDFDownloader:
     return f"{hashed_url}.pdf"
 
   async def download_requests(self, url, filename=None) -> str | None:
-    filename = Path(self._hash(url))
+    if time.time() - self.time_since_last_init >= self.switch_time:
+      self.rotate(reinit=False)
+    filename = os.path.join(self.download_dir, self._hash(url))
     try:
       async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
@@ -195,9 +204,9 @@ class PDFDownloader:
       for url in urls:
         result = await self.download(url)
         if result:
-          downloaded_paths.append(result) 
+          downloaded_paths.append(result)
 
-    return downloaded_paths         
+    return downloaded_paths
 
 
 # async def main() -> None:
@@ -209,7 +218,7 @@ class PDFDownloader:
 #     await downloader.download(batch[0], "testdata/pdfs/test.pdf")
 #   finally:
 #     print("Final")
-# 
-# 
+#
+#
 # if __name__ == "__main__":
 #   asyncio.run(main())

@@ -22,5 +22,3 @@ The data analyzed in this study was obtained from [SOURCE], the following licens
 
 # Datasets are available on request:
 The raw data supporting the conclusions of this article will be made available by the authors, without undue reservation.
-
-We need to implement rotations for mullvad. Maybe we should try different schedulings? So either rotating after a fixed intervall, rotating after some multiple of downloads, rotating after specific errors (which code)?. Depending on the sophistication of the anti-scraping techniques, we may need to change system time. So we should run on a vm? Should we use multiple VMs? do we need a vm manager? Start out by building a scheduling class.

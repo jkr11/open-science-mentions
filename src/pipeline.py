@@ -5,11 +5,12 @@ from typing import Any
 import sqlite3
 import json
 import asyncio
+from tqdm import tqdm
 
 PSYCH_JOURNALS = ["s9692511", "s27228949"]
 
 
-def insert_work_metadata(work: dict[str, Any]) -> None:
+def insert_work_metadata_sql(work: dict[str, Any]) -> None:
   """Inserts a single OpenAlex work's core metadata into the database."""
   pdf_locations = extract_pdf_locations(work)
 
@@ -48,33 +49,40 @@ def insert_work_metadata(work: dict[str, Any]) -> None:
     print(f"Database error during insert: {e}")
 
 
-def download_batch(batch_size=20) -> None:
-  downloader = PDFDownloader(DOWNLOAD_DIR_PDFS, switch_time=600)
+def download_batch(batch_size=20, switch_time=600) -> None:
+  downloader = PDFDownloader(DOWNLOAD_DIR_PDFS, switch_time=switch_time)
   try:
     with sqlite3.connect(DB_PATH) as conn:
       cursor = conn.cursor()
       cursor.execute(
-        """
-        SELECT openalex_id, oa_urls FROM works WHERE pdf_download_status = "PENDING" LIMIT 20
+        f"""
+          SELECT openalex_id, oa_urls FROM works WHERE pdf_download_status = "PENDING" LIMIT {batch_size}
         """
       )
       rows = cursor.fetchall()
       print(len(rows))
-      for id, url_json in rows:
+      for id, url_json in tqdm(rows, desc="Downloading PDFs", unit=False):
         url = json.loads(url_json)["pdf_links"][0]
-        print(url)
         path = asyncio.run(downloader.download(url))
         if path is not None:
-          # cursor.execute(
-          #  """
-          #    INSERT INTO works pdf_local_path = ?, pdf_download_status = DONE WHERE openalex_id = ?
-          #  """,
-          #  (path, id),
-          # )
-          print(f"MockQuery:\n {id}\n {url}\n {path}\n")
+          cursor.execute(
+            """
+              UPDATE works
+              SET pdf_local_path = ?, pdf_download_status = 'DONE'
+              WHERE openalex_id = ?
+            """,
+            (path, id),
+          )
   except Exception as e:
     print(f"Exception when downloading batch: {e}")
 
 
+N = 100
+
 if __name__ == "__main__":
-  download_batch()
+  # i = 0
+  # for work in get_journal_by_id(PSYCH_JOURNALS[0], 200, 2020):
+  #  if i >= N:
+  #    break
+  #  insert_work_metadata_sql(work)
+  download_batch(100)

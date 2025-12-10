@@ -3,11 +3,47 @@ import json
 
 API_PORT = "11434"
 
+ollama_url = f"http://127.0.0.1:{API_PORT}/api/generate"
+
 models = ["llama3:8b", "llama3.2:1b"]
 
 
+def is_article_data_based(msg: str, model_name: str = "llama3:8b"):
+  url = ollama_url
+
+  system_prompt = (
+    "You are an expert academic text analyzer. Your taks is to decide based on either an abstract or an excerpt of a paper"
+    "whether the journal is not data based (a review article or a general method) or if it is data based."
+    "Your response must be one of the following letters:"
+    "\n 'R': for review article"
+    "\n 'M': for method"
+    "\n 'D': for data"
+  )
+
+  payload = {
+    "model": model_name,
+    "prompt": f"--- STATEMENT ---\n{msg}\n\nCLASSIFICATION CODE:",
+    "system": system_prompt,
+    "stream": False,
+    "options": {
+      "num_thread": 16,
+      "temperature": 0.0,
+      "keep_alive": -1,
+      "num_predict": 20,
+    },
+  }
+
+  try:
+    response = requests.post(url, json=payload)
+    response.raise_for_status()
+    return response.text
+  except Exception as e:
+    print(f"Exception when deciding: {e}")
+    
+
+
 def get_das_classification(msg: str, model_name: str = "llama3:8b"):
-  url = f"http://127.0.0.1:{API_PORT}/api/generate"
+  url = ollama_url
 
   system_prompt = (
     "You are an expert academic text analyzer. Your task is to classify the intent of the provided Data Availability Statement (DAS)."

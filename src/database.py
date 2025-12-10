@@ -23,6 +23,19 @@ DOWNLOAD_DIR_TEIS = os.path.join(DB_DIR, "teis")
 os.makedirs(DB_DIR, exist_ok=True)
 
 
+def empty_table():
+  try:
+    with sqlite3.connect(DB_PATH) as conn:
+      cursor = conn.cursor()
+      cursor.execute("""
+          DELETE FROM works    
+        """)
+      conn.commit()
+      print(f"Database: '{DB_PATH}' emptied successfully.")
+  except Exception as e:
+    print(f"An error occured when emptying the table: {e}")
+
+
 def setup_pipeline_table():
   try:
     with sqlite3.connect(DB_PATH) as conn:
@@ -52,4 +65,5 @@ SET tei_process_status = ?, tei_local_path = ?
 WHERE openalex_id = ?; """
 
 if __name__ == "__main__":
+  #empty_table()
   setup_pipeline_table()
