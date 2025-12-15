@@ -4,7 +4,7 @@ import json
 from database import DB_PATH, DB_DIR
 from process.download import PDFDownloader
 from process.grobid import process_dir
-from process.analysis import FrontiersHandler
+from process.analysis import FrontiersHandler, extract_links_regex, OSFHandler
 import process.llm as llm
 import asyncio
 import pandas as pd
@@ -72,11 +72,11 @@ def build_test_set(LIMIT=200, output="experiment/test_set.csv"):
     df["filename"] = df["pdf_local_path"].apply(lambda path: path.split("/")[-1])
     df = df.sort_values(by="filename")
 
-    df.to_csv("experiment/test_set.csv", index=False)
+    df.to_csv(output, index=False)
 
 
-def eval_test_set_fuzzy_search():
-  df = pd.read_csv("experiment/test_set_ground_truth.csv", nrows=50)
+def eval_test_set_fuzzy_search(path, nrows=100):
+  df = pd.read_csv(path, nrows=100)
   for i, file in enumerate(df["pdf_local_path"]):
     file = file.replace(".pdf", ".grobid.tei.xml").replace("/pdfs/", "/teis/")
 
@@ -84,9 +84,20 @@ def eval_test_set_fuzzy_search():
 
     print("Handler data:", fh.has_data())
     print("Handler statement:", fh.get_availibility_score())
-    print(f"Ground Truth: {df['ground_truth'][i]}")
-    print(f"Ground statement: {df['ground_statement'][i]}")
+    txt = fh.extract_das()
+    if txt is not None:
+      link = extract_links_regex(txt)
+      print(extract_links_regex(txt))
+      if link is not None and link != [] and link != "" and link != "[]":
+        for l in link:
+          ll = l.strip("https://").split("/")
+          print(ll)
+          if len(ll) >= 3:
+            id = ll[1]
+            base = ll[0]
+            l = "https://" + base + "/" + id
     print()
+
 
 def eval_test_set_llm():
   df = pd.read_csv("experiment/test_set_ground_truth.csv", nrows=50)
@@ -95,7 +106,8 @@ def eval_test_set_llm():
 
 
 if __name__ == "__main__":
-  build_test_set(1000, output="experiment/test_db.csv")
+  # build_test_set(1000, output="experiment/test_db.csv")
+  eval_test_set_fuzzy_search("experiment/test_db.csv")
 
 
 # asyncio.run(run_example())

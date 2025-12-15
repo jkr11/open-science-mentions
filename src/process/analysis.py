@@ -1,5 +1,7 @@
 from lxml import etree
 from rapidfuzz import fuzz, process
+import re
+import requests
 
 FrontiersMatch = {
   "Original datasets are available in a publically accessible repository": 6,
@@ -10,6 +12,33 @@ FrontiersMatch = {
   "The data analyzed in this study was obtained from": 1,
   "The raw data supporting the conclusions of this article will be made available by the authors, without undue reservation": 0,
 }
+
+class OSFHandler:
+  @classmethod
+  def get_files(cls, _url):
+    url = f"{_url}/files/"
+    print(url)
+    resp = requests.get(url)
+    data = resp.json()
+    for file_enty in data["data"]:
+      print(file_enty["attributes"]["name"])
+
+def extract_links_regex(text) -> str:
+  url_pattern = re.compile(
+    r"((?:https?://)?(?:www\.)?(?:github\.com|osf\.io|example\.com)[^\s]*(?:\s[^\s]+)*)",
+    re.IGNORECASE,
+  )
+
+  raw_links = url_pattern.findall(text)
+
+  cleaned_links = []
+  for link in raw_links:
+    link = link.replace(" ", "")
+    if not link.startswith("http"):
+      link = "https://" + link
+    cleaned_links.append(link)
+
+  return cleaned_links
 
 
 class FrontiersHandler:
@@ -25,7 +54,9 @@ class FrontiersHandler:
   def has_data(self):
     return self.extract_das(self.input_path) is not None
 
-  def extract_das(self, xmlpath):
+  def extract_das(self, xmlpath=None):
+    if xmlpath is None:
+      xmlpath = self.input_path
     try:
       tree = etree.parse(xmlpath)
       root = tree.getroot()
@@ -46,14 +77,12 @@ class FrontiersHandler:
     if not text:
       return None
 
-    choices = list(
-      FrontiersMatch.keys()
-    )
+    choices = list(FrontiersMatch.keys())
     match = process.extractOne(text, choices, scorer=fuzz.partial_ratio)
 
     if match:
       matched_choice, score, _ = match
-      #print(f"Score: {score}")
-      #print(f"Label: {FrontiersMatch[matched_choice]}")
+      # print(f"Score: {score}")
+      # print(f"Label: {FrontiersMatch[matched_choice]}")
       return FrontiersMatch[matched_choice]
     return None
