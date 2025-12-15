@@ -1,10 +1,11 @@
 {
-  "grobid_server": "http://127.0.0.1:8070",
-  "batch_size": 100,
+  "grobid_server": "http://localhost:8070/",
+  "batch_size": 50,
   "sleep_time": 5,
-  "timeout": 60,
-  "logging" : {
-    "level" : "WARNGING",
+  "timeout": 160,
+  "logging": {
+    "file": "grobid.log",
+    "level": "ALL",
     "console": true
   }
 }

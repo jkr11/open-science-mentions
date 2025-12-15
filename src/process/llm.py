@@ -39,7 +39,6 @@ def is_article_data_based(msg: str, model_name: str = "llama3:8b"):
     return response.text
   except Exception as e:
     print(f"Exception when deciding: {e}")
-    
 
 
 def get_das_classification(msg: str, model_name: str = "llama3:8b"):
@@ -87,19 +86,20 @@ def get_das_classification(msg: str, model_name: str = "llama3:8b"):
     return "ERROR"
 
 
-statements_to_check = [
-  "The data and code supporting the findings of this study are available on GitHub at https://github.com/data/project-das.",
-  "Data are available from the corresponding author upon reasonable request.",
-  "This is a review article and did not generate any new data.",
-]
+if __name__ == "__main__":
+  statements_to_check = [
+    "The data and code supporting the findings of this study are available on GitHub at https://github.com/data/project-das.",
+    "Data are available from the corresponding author upon reasonable request.",
+    "This is a review article and did not generate any new data.",
+  ]
 
-print(
-  f"--- Classifying Statements using {models[1]} (Threads: {32}, Keep-Alive: {-1}) ---"
-)
+  print(
+    f"--- Classifying Statements using {models[1]} (Threads: {32}, Keep-Alive: {-1}) ---"
+  )
 
-for i, statement in enumerate(statements_to_check):
-  print(f"\n--- Statement {i + 1} ---")
-  print(f'Input: "{statement}"')
+  for i, statement in enumerate(statements_to_check):
+    print(f"\n--- Statement {i + 1} ---")
+    print(f'Input: "{statement}"')
 
-  result = get_das_classification(statement)
-  print(result)
+    result = get_das_classification(statement)
+    print(result)

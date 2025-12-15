@@ -1,6 +1,7 @@
-from database import DB_PATH, DOWNLOAD_DIR_PDFS
+from database import DB_PATH, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS
 from fetch import extract_pdf_locations, get_journal_by_id
 from process.download import PDFDownloader
+from process.grobid import process_dir, process_files, GrobidHandler
 from typing import Any
 import sqlite3
 import json
@@ -49,7 +50,7 @@ def insert_work_metadata_sql(work: dict[str, Any]) -> None:
     print(f"Database error during insert: {e}")
 
 
-def download_batch(batch_size=20, switch_time=600) -> None:
+def download_batch(batch_size=20, switch_time=30) -> bool:
   downloader = PDFDownloader(DOWNLOAD_DIR_PDFS, switch_time=switch_time)
   try:
     with sqlite3.connect(DB_PATH) as conn:
@@ -60,8 +61,9 @@ def download_batch(batch_size=20, switch_time=600) -> None:
         """
       )
       rows = cursor.fetchall()
-      print(len(rows))
-      for id, url_json in tqdm(rows, desc="Downloading PDFs", unit=False):
+      if len(rows) == 0:
+        return False
+      for id, url_json in rows:
         url = json.loads(url_json)["pdf_links"][0]
         path = asyncio.run(downloader.download(url))
         if path is not None:
@@ -73,16 +75,72 @@ def download_batch(batch_size=20, switch_time=600) -> None:
             """,
             (path, id),
           )
+      return True
   except Exception as e:
     print(f"Exception when downloading batch: {e}")
+    return False
 
 
-N = 100
+def grobid_batch(batch_size=20) -> bool:
+  grobid_handler = GrobidHandler()
+  try:
+    with sqlite3.connect(DB_PATH) as conn:
+      cursor = conn.cursor()
+      cursor.execute(
+        f"""
+          SELECT openalex_id, pdf_local_path FROM works WHERE pdf_download_status = 'DONE' AND tei_process_status = "PENDING" LIMIT {batch_size}
+        """
+      )
+      rows = cursor.fetchall()
+      print(len(rows))
+      if len(rows) == 0:
+        return False
+      ids, filenames = zip(*rows)
+      try:
+        output = grobid_handler.process_files(
+          filenames, input_path=DOWNLOAD_DIR_PDFS, output_path=DOWNLOAD_DIR_TEIS
+        )
+      except Exception as e:
+        print(f"Error when processing files with grobid:  {e}")
+
+      for pdf, tei in output.items():
+        cursor.execute(
+          """
+            UPDATE works
+            SET tei_local_path = ?,
+                tei_process_status = 'DONE'
+            WHERE pdf_local_path = ?
+        """,
+          (tei, pdf),
+        )
+
+      # #for id, filename in rows:
+      # #  try:
+      # #    grobid_handler.process_files(
+      # #      [filename], input_path=DOWNLOAD_DIR_PDFS, output_path=DOWNLOAD_DIR_TEIS
+      # #    )
+      # #  except Exception as e:
+      # #    print(f"Exception when processing file {filename} with grobid: {e}")
+      # #  cursor.execute(
+      # #    """
+      # #      UPDATE works SET tei_local_path = ?, tei_process_status = 'DONE' WHERE openalex_id = ?
+      # #    """,
+      # #    (filename.replace(".pdf", ".grobid.tei.xml"), id),
+      # #  )
+    return True
+
+  except Exception as e:
+    print(f"Exception when batch processing with grobid: {e}")
+    return False
+
 
 if __name__ == "__main__":
   # i = 0
   # for work in get_journal_by_id(PSYCH_JOURNALS[0], 200, 2020):
-  #  if i >= N:
-  #    break
   #  insert_work_metadata_sql(work)
-  download_batch(100)
+
+  while True:
+    succ = grobid_batch(20)
+    if not succ:
+      break
+  # process_dir(DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS)

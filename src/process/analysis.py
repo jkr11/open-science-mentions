@@ -42,6 +42,7 @@ class FrontiersHandler:
       return None
 
   def analyze_das(self, text):
+    print("Analyzing: ", text)
     if not text:
       return None
 

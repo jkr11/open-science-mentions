@@ -5,6 +5,7 @@ from database import DB_PATH, DB_DIR
 from process.download import PDFDownloader
 from process.grobid import process_dir
 from process.analysis import FrontiersHandler
+import process.llm as llm
 import asyncio
 import pandas as pd
 
@@ -25,8 +26,8 @@ import pandas as pd
 #
 # print(extracted_links[:10])
 #
-# DOWNLOAD_DIR_PDF = os.path.join(DB_DIR, "pdfs")
-# DOWNLOAD_DIR_TEI = os.path.join(DB_DIR, "teis")
+DOWNLOAD_DIR_PDF = os.path.join(DB_DIR, "pdfs")
+DOWNLOAD_DIR_TEI = os.path.join(DB_DIR, "teis")
 #
 # async def run_example():
 #  downloader = PDFDownloader(DOWNLOAD_DIR_PDF, switch_time=600)
@@ -53,7 +54,7 @@ def is_in_dir(name, path="test_db/pdfs"):
   return False
 
 
-def build_test_set(LIMIT=200):
+def build_test_set(LIMIT=200, output="experiment/test_set.csv"):
   df = pd.DataFrame()
   true_rows = []
   with sqlite3.connect(DB_PATH) as conn:
@@ -74,9 +75,28 @@ def build_test_set(LIMIT=200):
     df.to_csv("experiment/test_set.csv", index=False)
 
 
+def eval_test_set_fuzzy_search():
+  df = pd.read_csv("experiment/test_set_ground_truth.csv", nrows=50)
+  for i, file in enumerate(df["pdf_local_path"]):
+    file = file.replace(".pdf", ".grobid.tei.xml").replace("/pdfs/", "/teis/")
+
+    fh = FrontiersHandler(file)
+
+    print("Handler data:", fh.has_data())
+    print("Handler statement:", fh.get_availibility_score())
+    print(f"Ground Truth: {df['ground_truth'][i]}")
+    print(f"Ground statement: {df['ground_statement'][i]}")
+    print()
+
+def eval_test_set_llm():
+  df = pd.read_csv("experiment/test_set_ground_truth.csv", nrows=50)
+  for i, file in enumerate(df["pdf_local_path"]):
+    file = file.replace(".pdf", ".grobid.tei.xml").replace("/pdfs/", "/teis/")
+
+
 if __name__ == "__main__":
-  # build_test_set()
-  df = pd.read_csv("experiment/test_set_ground_truth.csv")
+  build_test_set(1000, output="experiment/test_db.csv")
+
 
 # asyncio.run(run_example())
 # process_dir(DOWNLOAD_DIR_PDF, DOWNLOAD_DIR_TEI)

@@ -151,7 +151,7 @@ class PDFDownloader:
 
   async def download_requests(self, url, filename=None) -> str | None:
     if time.time() - self.time_since_last_init >= self.switch_time:
-      self.rotate(reinit=False)
+      await self.rotate(reinit=False)
     filename = os.path.join(self.download_dir, self._hash(url))
     try:
       async with aiohttp.ClientSession() as session:
