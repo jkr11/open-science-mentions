@@ -1,12 +1,11 @@
 from database import DB_PATH, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS
-from fetch import extract_pdf_locations, get_journal_by_id
+from fetch import extract_pdf_locations
 from process.download import PDFDownloader
 from process.grobid import GrobidHandler
 from typing import Any
 import sqlite3
 import json
 import asyncio
-from tqdm import tqdm
 
 PSYCH_JOURNALS = ["s9692511", "s27228949"]
 
