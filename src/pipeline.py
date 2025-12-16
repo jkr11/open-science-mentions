@@ -1,7 +1,7 @@
 from database import DB_PATH, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS
 from fetch import extract_pdf_locations, get_journal_by_id
 from process.download import PDFDownloader
-from process.grobid import process_dir, process_files, GrobidHandler
+from process.grobid import GrobidHandler
 from typing import Any
 import sqlite3
 import json
@@ -19,7 +19,7 @@ def insert_work_metadata_sql(work: dict[str, Any]) -> None:
   source_info = primary_loc.get("source", {})
   journal_id = source_info.get("id")
   journal_name = source_info.get("display_name")
-  print(f"Inserting: {work['doi']}")
+  print(f"Inserting: {work['doi']} with {journal_id.split('/')[-1]}")
   try:
     with sqlite3.connect(DB_PATH) as conn:
       cursor = conn.cursor()
@@ -38,8 +38,8 @@ def insert_work_metadata_sql(work: dict[str, Any]) -> None:
         """,
         (
           work.get("id", "N/A").split("/")[-1],
-          journal_name,
           journal_id.split("/")[-1],
+          journal_name,
           work.get("doi", "N/A"),
           work.get("publication_year"),
           json.dumps(pdf_locations),
@@ -50,8 +50,96 @@ def insert_work_metadata_sql(work: dict[str, Any]) -> None:
     print(f"Database error during insert: {e}")
 
 
-def download_batch(batch_size=20, switch_time=30) -> bool:
-  downloader = PDFDownloader(DOWNLOAD_DIR_PDFS, switch_time=switch_time)
+async def download_batch_by_journal_async(
+  journal_id: str, batch_size=20, switch_time=30, allow_rotate=False
+) -> bool:
+  downloader = PDFDownloader(
+    DOWNLOAD_DIR_PDFS + "/test/",
+    allow_rotate=allow_rotate,
+    switch_time=switch_time,
+    headless=False,
+  )
+
+  try:
+    with sqlite3.connect(DB_PATH) as conn:
+      cursor = conn.cursor()
+      cursor.execute(
+        f"""
+                SELECT openalex_id, oa_urls 
+                FROM works 
+                WHERE pdf_download_status = "PENDING" 
+                  AND journal_id = "{journal_id.upper()}" 
+                LIMIT {batch_size}
+                """
+      )
+      rows = cursor.fetchall()
+      if not rows:
+        return False
+
+    async with downloader:  # ensures browser opens once and quits
+      for openalex_id, url_json in rows:
+        url = json.loads(url_json)["pdf_links"][0]
+        path = await downloader.download_browser(url)
+        if path:
+          with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+              """
+                            UPDATE works
+                            SET pdf_local_path = ?, pdf_download_status = 'DONE'
+                            WHERE openalex_id = ?
+                            """,
+              (path, openalex_id),
+            )
+    return True
+
+  except Exception as e:
+    print(f"Exception when downloading batch: {e}")
+    return False
+
+
+def download_batch_by_journal(
+  id: str, batch_size=20, switch_time=30, allow_rotate=False
+) -> bool:
+  downloader = PDFDownloader(
+    DOWNLOAD_DIR_PDFS + "/test/",
+    allow_rotate=allow_rotate,
+    switch_time=switch_time,
+    headless=False,
+  )
+  try:
+    with sqlite3.connect(DB_PATH) as conn:
+      cursor = conn.cursor()
+      cursor.execute(
+        f"""
+          SELECT openalex_id, oa_urls FROM works WHERE pdf_download_status = "PENDING" AND journal_id = "{id.upper()}" LIMIT {batch_size}
+        """
+      )
+      rows = cursor.fetchall()
+      if len(rows) == 0:
+        return False
+      for id, url_json in rows:
+        url = json.loads(url_json)["pdf_links"][0]
+        path = asyncio.run(downloader.download_browser(url))
+        if path is not None:
+          cursor.execute(
+            """
+              UPDATE works
+              SET pdf_local_path = ?, pdf_download_status = 'DONE'
+              WHERE openalex_id = ?
+            """,
+            (path, id),
+          )
+      return True
+  except Exception as e:
+    print(f"Exception when downloading batch: {e}")
+    return False
+
+
+def download_batch(batch_size=20, switch_time=30, allow_rotate=True) -> bool:
+  downloader = PDFDownloader(
+    DOWNLOAD_DIR_PDFS, allow_rotate=allow_rotate, switch_time=switch_time
+  )
   try:
     with sqlite3.connect(DB_PATH) as conn:
       cursor = conn.cursor()
@@ -113,20 +201,6 @@ def grobid_batch(batch_size=20) -> bool:
         """,
           (tei, pdf),
         )
-
-      # #for id, filename in rows:
-      # #  try:
-      # #    grobid_handler.process_files(
-      # #      [filename], input_path=DOWNLOAD_DIR_PDFS, output_path=DOWNLOAD_DIR_TEIS
-      # #    )
-      # #  except Exception as e:
-      # #    print(f"Exception when processing file {filename} with grobid: {e}")
-      # #  cursor.execute(
-      # #    """
-      # #      UPDATE works SET tei_local_path = ?, tei_process_status = 'DONE' WHERE openalex_id = ?
-      # #    """,
-      # #    (filename.replace(".pdf", ".grobid.tei.xml"), id),
-      # #  )
     return True
 
   except Exception as e:
@@ -134,13 +208,30 @@ def grobid_batch(batch_size=20) -> bool:
     return False
 
 
-if __name__ == "__main__":
-  # i = 0
-  # for work in get_journal_by_id(PSYCH_JOURNALS[0], 200, 2020):
-  #  insert_work_metadata_sql(work)
+SPED_JOURNALS = [
+  "s26220619",
+  "s133489141",
+  "s136622136",
+  "s38537713",
+  "s193250556",
+  "s93932044",
+  "s2738745139",
+  "s27825752",
+  "s2764729928",
+  "s171182518",
+]
 
+
+async def main():
   while True:
-    succ = grobid_batch(20)
+    succ = await download_batch_by_journal_async(SPED_JOURNALS[1], 20, 30, False)
     if not succ:
       break
+
+
+if __name__ == "__main__":
+  # for work in get_journal_by_id(SPED_JOURNALS[0], 20, 2010):
+  #  insert_work_metadata_sql(work)
+
+  asyncio.run(main())
   # process_dir(DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS)

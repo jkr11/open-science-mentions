@@ -8,7 +8,6 @@ SERVER_POOL = [("us", "nyc"), ("de", "fra"), ("se", "sto"), ("nl", "ams")]
 # TODO: add more vpn options like nord
 
 
-
 def rotate_vpn_server():
   try:
     country, city = random.choice(SERVER_POOL)
@@ -34,7 +33,7 @@ def rotate_vpn_server():
 
     status_check = subprocess.run(
       ["mullvad", "status"], check=True, capture_output=True, text=True
-  ).stdout
+    ).stdout
     print(status_check)
     print("-" * 50)
     return True
@@ -46,5 +45,6 @@ def rotate_vpn_server():
     print("-" * 50)
     pass
 
-if __name__ == "__main__":
-  rotate_vpn_server()
+
+# if __name__ == "__main__":
+#  rotate_vpn_server()

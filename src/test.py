@@ -113,8 +113,8 @@ async def run_pdf_download_test(url : str):
     aprint(f"Navigating directly to PDF URL: {test_pdf_url}")
     await browser.get(test_pdf_url)
 
-    if await is_captcha_triggered(browser):
-      rotate_vpn_server()
+    #if await is_captcha_triggered(browser):
+    #  rotate_vpn_server()
 
     downloaded_file = await wait_for_download(before_files)
 
