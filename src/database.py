@@ -1,7 +1,3 @@
-"""
-Setup the tables used in the pipline. We should outsource most of this to (pydantic?) settings.
-"""
-
 import sqlite3
 import os
 

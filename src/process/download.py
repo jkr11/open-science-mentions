@@ -10,7 +10,9 @@ from selenium_driverless import webdriver
 from selenium_driverless.types.options import Options
 from fake_useragent import UserAgent
 from database import DOWNLOAD_DIR_PDFS
-
+import uuid
+from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 from vpn import rotate_vpn_server
 
 
@@ -25,6 +27,8 @@ class PDFDownloader:
     self.download_dir = download_dir
     path = Path(self.download_dir)
     path.mkdir(parents=True, exist_ok=True)
+    self.tmpdir = os.path.join(self.download_dir, ".tmp")
+    Path(self.tmpdir).mkdir(parents=True, exist_ok=True)
     self.headless = headless
     self.time_since_last_init = time.time()
     self.switch_time = switch_time
@@ -35,16 +39,16 @@ class PDFDownloader:
     await self._init_browser()
     return self
 
-  async def __aexit__(self, exc_type, exc_value):
+  async def __aexit__(self, exc_type, exc_value, _):
     if self.browser:
       try:
         await self.browser.quit()
-        self.log("[*] Browser closed successfully.")
+        self.log("Browser closed successfully.")
       except Exception as e:
-        self.log(f"[x] Failed to close browser: {e}")
+        self.log(f"Failed to close browser: {e}")
 
     if exc_type is not None:
-      self.log(f"[x] Exception encountered: {exc_value}")
+      self.log(f"Exception encountered: {exc_value}")
 
     return
 
@@ -76,9 +80,10 @@ class PDFDownloader:
       options.add_argument("--headless=new")
 
     profile = {
-      "download.default_directory": self.download_dir,
+      "download.default_directory": self.tmpdir,
       "plugins.always_open_pdf_externally": True,
       "download.prompt_for_download": False,
+      "download.directory_upgrade": True,
     }
 
     options.add_experimental_option("prefs", profile)
@@ -86,7 +91,7 @@ class PDFDownloader:
 
     await self.browser.execute_cdp_cmd(
       "Page.setDownloadBehavior",
-      {"behavior": "allow", "downloadPath": self.download_dir},
+      {"behavior": "allow", "downloadPath": self.tmpdir},
     )
 
     if geodata:
@@ -137,47 +142,66 @@ class PDFDownloader:
       await self._init_browser(geodata)
 
   async def _wait_for_download(
-    self, before_files: Set[str], timeout: int = 30
+    self, before_files: Set[str], timeout: int = 10
   ) -> Optional[str]:
     start_time = time.time()
 
     while time.time() - start_time < timeout:
-      current_files = set(
-        f
-        for f in os.listdir(self.download_dir)
-        if f.lower().endswith(".pdf") and not f.endswith(".crdownload")
-      )
+      try:
+        current_files = set(
+          f
+          for f in os.listdir(self.tmpdir)
+          if f.lower().endswith(".pdf") and not f.endswith(".crdownload")
+        )
 
-      new_files = current_files - before_files
-      print(new_files)
-      if new_files:
-        return list(new_files)[0]
+        new_files = current_files - before_files
+        # print(new_files)
+        if new_files:
+          return list(new_files)[0]
 
-      await asyncio.sleep(0.5)
-
+        await asyncio.sleep(0.5)
+      except Exception as e:
+        self.log(f"Exception when waiting for file: {e}")
+        return list()
     return None
+
+  def _finalize_download(self, tmppath: str, url: str) -> str | None:
+    final_name = self._hash(url)
+    final_path = os.path.join(self.download_dir, final_name)
+    try:
+      PdfReader(tmppath)
+    except PdfReadError:
+      print("Invalid pdf, deleting")
+      os.remove(tmppath)
+      return None
+    os.replace(tmppath, final_path)
+    self.log(f"Finalized download -> {final_name}")
+    return final_path
 
   def _hash(self, url: str) -> str:
     hashed_url = hashlib.sha256(url.encode()).hexdigest()
     return f"{hashed_url}.pdf"
 
   async def download_requests(self, url, filename=None) -> str | None:
-    filename = os.path.join(self.download_dir, self._hash(url))
+    tmp_path = os.path.join(self.tmpdir, f"{uuid.uuid4().hex}.pdf")
     try:
       async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
           response.raise_for_status()
-          async with aiofiles.open(filename, "wb") as f:
+          async with aiofiles.open(tmp_path, "wb") as f:
             await f.write(await response.read())
-          self.log(f"[*] SUCEESS: downloaded {url} using request.")
-          return filename
+          self.log(f"[*] SUCCESS: downloaded {url} using request.")
+          return self._finalize_download(tmppath=tmp_path)
+
     except Exception as e:
       print(f"[x] Error downloading PDF: {e} using requests")
+      if os.path.exists(tmp_path):
+        os.remove(tmp_path)
       return None
 
   async def _wait_for_page_load(self, timeout=10):
     start = time.time()
-    while time.time() - start < timeout:
+    while (time.time() - start) < timeout:
       ready_state = await self.browser.execute_script("return document.readyState")
       if ready_state == "complete":
         return True
@@ -185,22 +209,28 @@ class PDFDownloader:
     return False
 
   async def download_browser(self, url: str) -> str | None:
+    print(f"Handling URL: {url}")
     if not self.browser:
       self.log("Reiniting browser")
       await self._init_browser()
+    before_files = set()
+    if self.tmpdir:
+      before_files = set(
+        f for f in os.listdir(self.tmpdir) if f.lower().endswith(".pdf")
+      )
 
-    before_files = set(
-      f for f in os.listdir(self.download_dir) if f.lower().endswith(".pdf")
-    )
     try:
       await self.browser.get(url)
-      if not await self._wait_for_page_load(timeout=15):
+      if not await self._wait_for_page_load(timeout=5):
         self.log(f"[x] Page load timeout for {url}")
         return None
+
       downloaded_file = await self._wait_for_download(before_files)
+
       if downloaded_file:
         self.log(f"[*] Success: {downloaded_file}")
-        return downloaded_file
+        tmppath = os.path.join(self.tmpdir, downloaded_file)
+        return self._finalize_download(tmppath, url)
       else:
         self.log("[x] Failure: Timeout.")
         return None
@@ -236,3 +266,8 @@ class PDFDownloader:
         if result:
           downloaded_paths.append(result)
     return downloaded_paths
+
+
+if __name__ == "__main__":
+  down = PDFDownloader("dir")
+  print(asyncio.run(down._get_current_ip_geo()))
