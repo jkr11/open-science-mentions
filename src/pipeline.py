@@ -57,6 +57,9 @@ def handle_url(url: str):
   return url
 
 
+from tqdm import tqdm
+
+
 async def download_batch_by_journal_async(
   journal_id: str, batch_size=20, switch_time=30, allow_rotate=False
 ) -> bool:
@@ -82,7 +85,7 @@ async def download_batch_by_journal_async(
       rows = cursor.fetchall()
       if not rows:
         return False
-
+      pbar = tqdm(total=len(rows), desc=f"Journal: {journal_id}", unit="pdf")
       async with downloader:
         for openalex_id, url_json in rows:
           urls = json.loads(url_json)["pdf_links"]
@@ -103,15 +106,19 @@ async def download_batch_by_journal_async(
                   """,
                   (path, openalex_id),
                 )
+              break
+          pbar.update(1)
+      pbar.close()
       return True
 
   except Exception as e:
     print(f"Exception when downloading batch: {e}")
+    pbar.close()
     return False
 
 
-def download_batch_by_journal(
-  id: str, batch_size=20, switch_time=30, allow_rotate=False
+async def download_batch_by_journal_async(
+  journal_id: str, batch_size=20, switch_time=30, allow_rotate=False
 ) -> bool:
   downloader = PDFDownloader(
     DOWNLOAD_DIR_PDFS + "/test/",
@@ -119,32 +126,71 @@ def download_batch_by_journal(
     switch_time=switch_time,
     headless=False,
   )
+
   try:
     with sqlite3.connect(DB_PATH) as conn:
       cursor = conn.cursor()
       cursor.execute(
         f"""
-          SELECT openalex_id, oa_urls FROM works WHERE pdf_download_status = "PENDING" AND journal_id = "{id.upper()}" LIMIT {batch_size}
+          SELECT openalex_id, oa_urls 
+          FROM works 
+          WHERE pdf_download_status = "PENDING" 
+            AND journal_id = "{journal_id.upper()}" 
+          LIMIT {batch_size}
         """
       )
       rows = cursor.fetchall()
-      if len(rows) == 0:
-        return False
-      for id, url_json in rows:
-        url = json.loads(url_json)["pdf_links"][0]
-        path = asyncio.run(downloader.download_browser(url))
-        if path is not None:
+
+    if not rows:
+      return False
+
+    pbar = tqdm(total=len(rows), desc=f"Journal: {journal_id}", unit="pdf")
+
+    async with downloader:
+      for openalex_id, url_json in rows:
+        urls = json.loads(url_json).get("pdf_links", [])
+        urls = [u for u in urls if u is not None]
+
+        final_path = None
+        status_to_write = "FAILED"
+
+        for url in urls:
+          try:
+            url = handle_url(url)
+            final_path = await downloader.download_browser(url)
+
+            if final_path:
+              status_to_write = "DONE"
+              break
+
+          except Exception as e:
+            error_msg = str(e).lower()
+            if "timeout" in error_msg:
+              status_to_write = "TIMEOUT"
+              print(f"\n[!] Timeout detected for {openalex_id}")
+            else:
+              print(f"\n[x] Error: {e}")
+
+        with sqlite3.connect(DB_PATH) as conn:
+          cursor = conn.cursor()
           cursor.execute(
             """
               UPDATE works
-              SET pdf_local_path = ?, pdf_download_status = 'DONE'
+              SET pdf_local_path = ?, pdf_download_status = ?
               WHERE openalex_id = ?
             """,
-            (path, id),
+            (final_path, status_to_write, openalex_id),
           )
-      return True
+
+        pbar.update(1)
+
+    pbar.close()
+    return True
+
   except Exception as e:
-    print(f"Exception when downloading batch: {e}")
+    print(f"\nCritical Batch Error: {e}")
+    if "pbar" in locals():
+      pbar.close()
     return False
 
 

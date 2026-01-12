@@ -105,14 +105,14 @@ def eval_test_set_llm():
     file = file.replace(".pdf", ".grobid.tei.xml").replace("/pdfs/", "/teis/")
 
 
-if __name__ == "__main__":
+#if __name__ == "__main__":
   # build_test_set(1000, output="experiment/test_db.csv")
-  eval_test_set_fuzzy_search("experiment/test_db.csv")
+  #eval_test_set_fuzzy_search("experiment/test_db.csv")
 
 
 # asyncio.run(run_example())
-# process_dir(DOWNLOAD_DIR_PDF, DOWNLOAD_DIR_TEI)
+process_dir(DOWNLOAD_DIR_PDF+"/test", DOWNLOAD_DIR_TEI+"/sped")
 # for i in dir_iterator(DOWNLOAD_DIR_TEI, "xml"):
 #   fh = FrontiersHandler(os.path.join(DOWNLOAD_DIR_TEI, i))
 #   print(fh.has_data())
-#   print(fh.get_availibility_score())
+#   print(fh.get_availibility_score()
