@@ -60,7 +60,7 @@ def handle_url(url: str):
 from tqdm import tqdm
 
 
-async def download_batch_by_journal_async(
+async def download_batch_by_journal_async_(
   journal_id: str, batch_size=20, switch_time=30, allow_rotate=False
 ) -> bool:
   downloader = PDFDownloader(
@@ -134,7 +134,7 @@ async def download_batch_by_journal_async(
         f"""
           SELECT openalex_id, oa_urls 
           FROM works 
-          WHERE pdf_download_status = "PENDING" 
+          WHERE pdf_download_status = "FAILED" 
             AND journal_id = "{journal_id.upper()}" 
           LIMIT {batch_size}
         """
@@ -155,6 +155,8 @@ async def download_batch_by_journal_async(
         status_to_write = "FAILED"
 
         for url in urls:
+          if "tandf" not in url:
+            continue
           try:
             url = handle_url(url)
             final_path = await downloader.download_browser(url)

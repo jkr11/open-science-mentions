@@ -220,10 +220,12 @@ class PDFDownloader:
       )
 
     try:
+      import pyautogui
       await self.browser.get(url)
       if not await self._wait_for_page_load(timeout=5):
         self.log(f"[x] Page load timeout for {url}")
         return None
+      pyautogui.press('enter')
 
       downloaded_file = await self._wait_for_download(before_files)
 
