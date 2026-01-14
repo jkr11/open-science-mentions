@@ -134,7 +134,7 @@ async def download_batch_by_journal_async(
         f"""
           SELECT openalex_id, oa_urls 
           FROM works 
-          WHERE pdf_download_status = "FAILED" 
+          WHERE pdf_download_status = "PENDING" 
             AND journal_id = "{journal_id.upper()}" 
           LIMIT {batch_size}
         """
@@ -142,6 +142,7 @@ async def download_batch_by_journal_async(
       rows = cursor.fetchall()
 
     if not rows:
+      print("no rows")
       return False
 
     pbar = tqdm(total=len(rows), desc=f"Journal: {journal_id}", unit="pdf")
@@ -155,9 +156,6 @@ async def download_batch_by_journal_async(
         status_to_write = "FAILED"
 
         for url in urls:
-          if "tandf" not in url:
-            print("Skipping url")
-            continue
           try:
             url = handle_url(url)
             final_path = await downloader.download_browser(url)
@@ -175,6 +173,7 @@ async def download_batch_by_journal_async(
               print(f"\n[x] Error: {e}")
 
         with sqlite3.connect(DB_PATH) as conn:
+          print(f"Writing to database: {status_to_write}")
           cursor = conn.cursor()
           cursor.execute(
             """
@@ -230,23 +229,30 @@ def download_batch(batch_size=20, switch_time=30, allow_rotate=True) -> bool:
     return False
 
 
-def grobid_batch(batch_size=20) -> bool:
+def grobid_batch(journal_id:str, batch_size:int=20, DDIRPDF:str=DOWNLOAD_DIR_PDFS, DDIRTEI:str=DOWNLOAD_DIR_TEIS) -> bool:
   grobid_handler = GrobidHandler()
   try:
     with sqlite3.connect(DB_PATH) as conn:
       cursor = conn.cursor()
       cursor.execute(
         f"""
-          SELECT openalex_id, pdf_local_path FROM works WHERE pdf_download_status = 'DONE' AND tei_process_status = "PENDING" LIMIT {batch_size}
+          SELECT openalex_id, pdf_local_path FROM works 
+          WHERE pdf_download_status = 'DONE' 
+            AND tei_process_status = "PENDING"
+            AND journal_id = "{journal_id.upper()}"
+          LIMIT {batch_size}
         """
       )
       rows = cursor.fetchall()
       if len(rows) == 0:
+        print("No rows")
         return False
+      else:
+        print(rows)
       ids, filenames = zip(*rows)
       try:
         output = grobid_handler.process_files(
-          filenames, input_path=DOWNLOAD_DIR_PDFS, output_path=DOWNLOAD_DIR_TEIS
+          filenames, input_path=DDIRPDF, output_path=DDIRTEI
         )
       except Exception as e:
         print(f"Error when processing files with grobid:  {e}")
@@ -293,6 +299,7 @@ if __name__ == "__main__":
   # for work in get_journal_by_id(SPED_JOURNALS[1], 20, 2010):
   #   insert_work_metadata_sql(work)
 
+  # while grobid_batch(SPED_JOURNALS[1], 20, DOWNLOAD_DIR_PDFS+"/test/", DOWNLOAD_DIR_TEIS+"/sped/"): ...
   asyncio.run(main())
   # print(handle_url("https://www.tandfonline.com/doi/epdf/10.1080/13603116.2023.2190750?needAccess=true&role=button"))
   # process_dir(DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS)
