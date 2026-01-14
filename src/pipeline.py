@@ -156,6 +156,7 @@ async def download_batch_by_journal_async(
 
         for url in urls:
           if "tandf" not in url:
+            print("Skipping url")
             continue
           try:
             url = handle_url(url)

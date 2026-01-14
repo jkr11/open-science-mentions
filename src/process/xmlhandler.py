@@ -1,8 +1,16 @@
 from lxml import etree
+import grobid_tei_xml as gtx
+import json
 
 class XMLHandler:
   def extract_abstract(self):
     pass
+
+  @classmethod
+  def extract_fulltext(self, xmlpath) -> str:
+    with open(xmlpath, "r") as xmlfile:
+      doc = gtx.parse_document_xml(xmlfile.read())
+      return json.dumps(doc.to_dict())
 
   def extract_data_availibility_statement(self, xmlpath) -> str | None:
     try:

@@ -4,7 +4,8 @@ import json
 from database import DB_PATH, DB_DIR
 from process.download import PDFDownloader
 from process.grobid import process_dir
-from process.analysis import FrontiersHandler, extract_links_regex, OSFHandler
+from process.analysis import FrontiersHandler, extract_links_regex, OSFHandler, extract_github_links
+from process.xmlhandler import XMLHandler
 import process.llm as llm
 import asyncio
 import pandas as pd
@@ -40,10 +41,10 @@ DOWNLOAD_DIR_TEI = os.path.join(DB_DIR, "teis")
 #    finally:
 #      print("Exited")
 #
-# def dir_iterator(input_dir, ext):
-#  for file in os.listdir(input_dir):
-#    if file.split(".")[-1] == ext:
-#      yield file
+def dir_iterator(input_dir, ext):
+  for file in os.listdir(input_dir):
+    if file.split(".")[-1] == ext:
+      yield file
 
 
 def is_in_dir(name, path="test_db/pdfs"):
@@ -52,6 +53,10 @@ def is_in_dir(name, path="test_db/pdfs"):
       print(name)
       return True
   return False
+
+def extract_text_analysis():
+  for file in os.listdir("test_db/test/"):
+    pass
 
 
 def build_test_set(LIMIT=200, output="experiment/test_set.csv"):
@@ -73,7 +78,6 @@ def build_test_set(LIMIT=200, output="experiment/test_set.csv"):
     df = df.sort_values(by="filename")
 
     df.to_csv(output, index=False)
-
 
 def eval_test_set_fuzzy_search(path, nrows=100):
   df = pd.read_csv(path, nrows=100)
@@ -111,8 +115,12 @@ def eval_test_set_llm():
 
 
 # asyncio.run(run_example())
-process_dir(DOWNLOAD_DIR_PDF+"/test", DOWNLOAD_DIR_TEI+"/sped")
-# for i in dir_iterator(DOWNLOAD_DIR_TEI, "xml"):
+# process_dir(DOWNLOAD_DIR_PDF+"/test", DOWNLOAD_DIR_TEI+"/sped")
+DDIR = DOWNLOAD_DIR_TEI+"/sped/"
+for i in dir_iterator(DDIR, "xml"):
+  #print(i)
+  text = XMLHandler.extract_fulltext(DDIR+i)
+  print(extract_github_links(text))
 #   fh = FrontiersHandler(os.path.join(DOWNLOAD_DIR_TEI, i))
 #   print(fh.has_data())
 #   print(fh.get_availibility_score()

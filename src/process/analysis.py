@@ -23,6 +23,15 @@ class OSFHandler:
     for file_enty in data["data"]:
       print(file_enty["attributes"]["name"])
 
+def extract_github_links(text) -> str:
+  github_regex = "(?:https?://)?github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*"
+  pattern = re.compile(
+    fr"{github_regex}",
+    re.IGNORECASE,
+  )
+  raw_links = pattern.findall(text)
+  return raw_links
+
 def extract_links_regex(text) -> str:
   url_pattern = re.compile(
     r"((?:https?://)?(?:www\.)?(?:github\.com|osf\.io|example\.com)[^\s]*(?:\s[^\s]+)*)",
