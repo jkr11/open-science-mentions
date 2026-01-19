@@ -74,3 +74,12 @@ df_processed <- frontiers_ed_index |>
   mutate(
     analysis_result = map_int(tei_local_path, call_fastapi)
   )
+
+print(df_processed)
+
+save(df_processed, file="processedFrontiersData.Rda")
+
+
+# None, 0, 1, 2, 3, 4, 5, 6, 7
+# osf link exists
+summary(df_processed)
