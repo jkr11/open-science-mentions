@@ -299,7 +299,7 @@ if __name__ == "__main__":
   #for work in get_journal_by_id("S2596526815", 20, 2010):
   #   insert_work_metadata_sql(work)
 
-   while grobid_batch("S2596526815", 20, DOWNLOAD_DIR_PDFS+"/test/", DOWNLOAD_DIR_TEIS+"/ed/"): ...
+  while grobid_batch("S2596526815", 20, DOWNLOAD_DIR_PDFS+"/test/", DOWNLOAD_DIR_TEIS+"/ed/"): ...
   # asyncio.run(main())
   # print(handle_url("https://www.tandfonline.com/doi/epdf/10.1080/13603116.2023.2190750?needAccess=true&role=button"))
   # process_dir(DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS)

@@ -5,6 +5,8 @@ conn <- dbConnect(RSQLite::SQLite(), "test_db/index.db")
 df <- dbGetQuery(conn, "select * from works")
 head(df, 5)
 
+cur_db <- df
+save(cur_db, file="cur_dvb.Rda")
 
 df <- df %>% filter(!is.na(pdf_local_path))
 
@@ -27,6 +29,16 @@ print(paper)
 print(paper$info)
 
 links <- metacheck::osf_links(paper)
+library(purrr)
+
+sped_teis <- sped_teis %>%
+  mutate(links = map(tei_local_path, ~{
+    p <- metacheck::read(.x)
+    metacheck::osf_links(p)
+  }))
+
+sped_teis %>% select(tei_local_path, links)
+
 print(links)
 
 # normal_path = "test_db/pdfs/"
@@ -75,11 +87,14 @@ df_processed <- frontiers_ed_index |>
     analysis_result = map_int(tei_local_path, call_fastapi)
   )
 
-print(df_processed)
 
-save(df_processed, file="processedFrontiersData.Rda")
+conn <- dbConnect(RSQLite::SQLite(), "test_db/index.db")
+df2 <- dbGetQuery(conn, "select * from works")
 
+frontiers_ed_index <- df2 %>%
+  filter(journal_id == "S2596526815") %>%
+  tibble() %>%
+  filter(tei_process_status == "DONE")
 
-# None, 0, 1, 2, 3, 4, 5, 6, 7
-# osf link exists
-summary(df_processed)
+frontiers_ed_index$tei_local_path <- paste0("test_db/teis/ed/", frontiers_ed_index$tei_local_path)
+frontiers_ed_papers <- metacheck::read(as.vector(frontiers_ed_index$tei_local_path))
