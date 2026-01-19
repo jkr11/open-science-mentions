@@ -95,3 +95,24 @@ class FrontiersHandler:
       # print(f"Label: {FrontiersMatch[matched_choice]}")
       return FrontiersMatch[matched_choice]
     return None
+
+if __name__ == "__main__":
+  import os
+  results = []
+  for f in os.listdir("test_db/teis/ed/"):
+    print(f)
+    if f.split(".")[-1] == "xml":
+      fh = FrontiersHandler("test_db/teis/ed/"+f)
+      asc = fh.get_availibility_score()
+      print(asc)
+      results.append(asc)
+
+  print(results)
+
+  counts = {"None" : 0, 0:0, 1:0,2:0,3:0,4:0,5:0,6:0}
+  for r in results:
+    if r is None:
+      counts["None"] += 1
+    elif isinstance(r, int):
+      counts[r] += 1
+  print(counts)
