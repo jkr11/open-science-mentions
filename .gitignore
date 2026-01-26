@@ -17,6 +17,11 @@ testdata/
 *downloads/
 test_db/
 paperData.Rda
+*.Rda
+*.RData
+*.Rhistory
+frontiersEdPapers.csv
+/frontiersEdPapers.csv
 
 ### PYTHON ###
 # Byte-compiled / optimized / DLL files
@@ -235,3 +240,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+.Rproj.user

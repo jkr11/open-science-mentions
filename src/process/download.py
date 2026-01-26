@@ -79,11 +79,12 @@ class PDFDownloader:
     if self.headless:
       options.add_argument("--headless=new")
 
+    print(f"INIT download_dir temporary is: {self.tmpdir}")
+    # fix autodownload: chrome://settings/content/pdfDocuments
     profile = {
       "download.default_directory": self.tmpdir,
       "plugins.always_open_pdf_externally": True,
       "download.prompt_for_download": False,
-      "download.directory_upgrade": True,
     }
 
     options.add_experimental_option("prefs", profile)
@@ -104,6 +105,7 @@ class PDFDownloader:
         await self.browser.execute_cdp_cmd(
           "Emulation.setTimezoneOverride", {"timezoneId": geodata["timezone"]}
         )
+    #self.rotate(reinit=False)
     self.time_since_last_init = time.time()
 
   async def _get_current_ip_geo(self) -> Dict:
@@ -142,7 +144,7 @@ class PDFDownloader:
       await self._init_browser(geodata)
 
   async def _wait_for_download(
-    self, before_files: Set[str], timeout: int = 10
+    self, before_files: Set[str], timeout: int = 5
   ) -> Optional[str]:
     start_time = time.time()
 
@@ -209,6 +211,8 @@ class PDFDownloader:
     return False
 
   async def download_browser(self, url: str) -> str | None:
+    if time.time() - self.time_since_last_init > self.switch_time:
+      self.rotate(reinit=False) 
     print(f"Handling URL: {url}")
     if not self.browser:
       self.log("Reiniting browser")
@@ -218,15 +222,11 @@ class PDFDownloader:
       before_files = set(
         f for f in os.listdir(self.tmpdir) if f.lower().endswith(".pdf")
       )
-
     try:
-      #import pyautogui
       await self.browser.get(url)
       if not await self._wait_for_page_load(timeout=5):
         self.log(f"[x] Page load timeout for {url}")
         return None
-      #for _ in range(11):
-        #pyautogui.press('tab')
 
       downloaded_file = await self._wait_for_download(before_files)
 
@@ -236,13 +236,15 @@ class PDFDownloader:
         return self._finalize_download(tmppath, url)
       else:
         self.log("[x] Failure: Timeout.")
-        return None
+        raise Exception("[x] Failure: Timeout.")
     except Exception as e:
       self.log(f"Exception in download_browser: {e}")
+      raise Exception(e)
       return None
 
   async def download(self, url: str) -> Optional[str]:
-    if time.time() - self.time_since_last_init < self.switch_time:
+    print(f"CTIME: {time.time() - self.time_since_last_init}\n{self.switch_time}")
+    if time.time() - self.time_since_last_init > self.switch_time:
       await self.rotate()
 
     filename = self._hash(url)

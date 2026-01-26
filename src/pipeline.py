@@ -118,7 +118,7 @@ async def download_batch_by_journal_async_(
 
 
 async def download_batch_by_journal_async(
-  journal_id: str, batch_size=20, switch_time=30, allow_rotate=False
+  journal_id: str, batch_size=20, switch_time=30, allow_rotate=True
 ) -> bool:
   downloader = PDFDownloader(
     DOWNLOAD_DIR_PDFS + "/test/",
@@ -130,11 +130,11 @@ async def download_batch_by_journal_async(
   try:
     with sqlite3.connect(DB_PATH) as conn:
       cursor = conn.cursor()
-      cursor.execute(
+      cursor.execute( # change this back to PENDING after
         f"""
           SELECT openalex_id, oa_urls 
           FROM works 
-          WHERE pdf_download_status = "PENDING" 
+          WHERE pdf_download_status = "FAILED" 
             AND journal_id = "{journal_id.upper()}" 
           LIMIT {batch_size}
         """
@@ -166,7 +166,8 @@ async def download_batch_by_journal_async(
 
           except Exception as e:
             error_msg = str(e).lower()
-            if "timeout" in error_msg:
+            print(f"ERROR curr: {error_msg}") # strange no lower here
+            if "Timeout" in error_msg:
               status_to_write = "TIMEOUT"
               print(f"\n[!] Timeout detected for {openalex_id}")
             else:
@@ -248,7 +249,8 @@ def grobid_batch(journal_id:str, batch_size:int=20, DDIRPDF:str=DOWNLOAD_DIR_PDF
         print("No rows")
         return False
       else:
-        print(rows)
+        # print(rows)
+        print(f"Handling {len(rows)} rows")
       ids, filenames = zip(*rows)
       try:
         output = grobid_handler.process_files(
@@ -287,19 +289,29 @@ SPED_JOURNALS = [
   "s171182518",
 ]
 
+ED_JOURNALS = [
+  "S2738008561", # mdpi
+  "S2596526815", # frontiers 
+  "S166722454",  # Springer # TODO: fix FAILED ones
+  "S40639335", # Zeitschrift für Erziehungswissenschaften (Springer)
+  "S4210217710", # Deutsche Schule
+]
+
 
 async def main():
+  for journal in ED_JOURNALS[2:]:
+    print(journal)
   while True:
-    succ = await download_batch_by_journal_async("S2596526815", 100, 30, False)
+    succ = await download_batch_by_journal_async(ED_JOURNALS[2], 1000, 10, True)
     if not succ:
       break
 
 
 if __name__ == "__main__":
-  #for work in get_journal_by_id("S2596526815", 20, 2010):
+  #for work in get_journal_by_id(ED_JOURNALS[2], 20, 2016):
   #   insert_work_metadata_sql(work)
 
-  while grobid_batch("S2596526815", 20, DOWNLOAD_DIR_PDFS+"/test/", DOWNLOAD_DIR_TEIS+"/ed/"): ...
-  # asyncio.run(main())
+  # while grobid_batch("S2738008561", 40, DOWNLOAD_DIR_PDFS+"/test/", DOWNLOAD_DIR_TEIS+"/ed/"): ...
+  asyncio.run(main())
   # print(handle_url("https://www.tandfonline.com/doi/epdf/10.1080/13603116.2023.2190750?needAccess=true&role=button"))
   # process_dir(DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS)

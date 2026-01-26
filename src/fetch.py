@@ -33,6 +33,7 @@ def get_journal_by_id(
       "sort": "publication_year:desc",
       "mailto": f"{EMAIL_ADRESS}",
     }
+    print(f"Query: {params}")
     try:
       r = requests.get(OPEN_ALEX_API_URL, params=params, timeout=100)
       r.raise_for_status()
@@ -62,3 +63,34 @@ def extract_pdf_locations(work: dict) -> dict[str, list[Any]]:
   other_urls = [loc.get("pdf_url") for loc in others if loc.get("pdf_url")]
   pdf_links = [best] + [primary] + other_urls
   return {"pdf_links": list(set(pdf_links))}
+
+def get_github_files(owner, repo, path=""):
+    url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
+    response = requests.get(url)
+    
+    if response.status_code == 200:
+        contents = response.json()
+        for item in contents:
+            print(f"{item['type'].upper()}: {item['name']}")
+    else:
+        print(f"Error: {response.status_code}")
+
+def get_all_files_recursive(owner, repo, branch="main"):
+    url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
+    response = requests.get(url)
+    
+    if response.status_code == 200:
+        tree = response.json().get("tree", [])
+        for item in tree:
+            type_label = "FILE" if item["type"] == "blob" else "DIR "
+            print(f"{type_label}: {item['path']}")
+    else:
+        print(f"Failed to fetch: {response.status_code}")
+
+def github_to_api(github_link : str) -> tuple[str]:
+  parts = github_link.split("/")
+  print(parts)
+  user = parts[3]
+  name = parts[4]
+  print(f"User:_{user}, {name}")
+  return user, name
