@@ -380,11 +380,7 @@ combined_plot <- p_top / p_bottom
 combined_plot
 
 conn_fn <- dbConnect(RSQLite::SQLite(), "../test_db/index.db")
-df_fn <- dbGetQuery(conn, "select * from works")
-df_fn = df_fn %>% filter(journal_id=="S63113783")
-summary(df_fn)
-
-dbDisconnect(conn)
-dbDisconnect(conn_fn)
-
+pedocs_df <- dbGetQuery(conn_fn, "select * from works")
+pedocs_index = pedocs_df %>% filter(journal_id == "S63113783")
+mdpi_ed_index_tei$tei_local_path <- paste0("../test_db/teis/ed/", mdpi_ed_index_tei$tei_local_path)
 

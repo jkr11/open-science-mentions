@@ -385,8 +385,8 @@ if __name__ == "__main__":
 
   # transform_url_by_journal(ED_JOURNALS[N])
 
-  # while grobid_batch(ED_JOURNALS[3], 40, DOWNLOAD_DIR_PDFS+"/test/", DOWNLOAD_DIR_TEIS+"/ed/"): ...
-  asyncio.run(main(N))
+  while grobid_batch(ED_JOURNALS[N], 40, DOWNLOAD_DIR_PDFS+"/test/", DOWNLOAD_DIR_TEIS+"/ed/"): ...
+  # asyncio.run(main(N))
   # print(handle_url("https://www.tandfonline.com/doi/epdf/10.1080/13603116.2023.2190750?needAccess=true&role=button"))
   # process_dir(DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS)
   # https://www.waxmann.com/zeitschriften/waxmann-zeitschriftendetails/index.php?eID=download&id_artikel=ART106034&uid=frei
