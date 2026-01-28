@@ -121,6 +121,7 @@ class PDFDownloader:
 
   async def rotate(self, reinit=True):
     if not reinit:
+      self.log("Rotating without reinit")
       rotate_vpn_server()
       await asyncio.sleep(1)
       self.time_since_last_init = time.time()
@@ -211,8 +212,10 @@ class PDFDownloader:
     return False
 
   async def download_browser(self, url: str) -> str | None:
-    if time.time() - self.time_since_last_init > self.switch_time:
-      self.rotate(reinit=False) 
+    ctime = time.time() - self.time_since_last_init
+    print(f"Time: {ctime}/{self.switch_time}")
+    if ctime > self.switch_time:
+      await self.rotate(reinit=False) 
     print(f"Handling URL: {url}")
     if not self.browser:
       self.log("Reiniting browser")

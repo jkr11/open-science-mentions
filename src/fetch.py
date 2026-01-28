@@ -14,7 +14,7 @@ INDEX_DB = os.path.join(DB_DIR, "openalex_jsonl")
 
 
 def get_journal_by_id(
-  journal_ids: List[str], per_page: int, min_year: int
+  journal_ids: List[str], per_page: int, min_year: int, pdf:bool=False
 ) -> Generator[Any, None, None]:
   cursor = "*"
   if isinstance(journal_ids, str):
@@ -27,7 +27,7 @@ def get_journal_by_id(
         "primary_location.source.id:"
         f"{'|'.join(journal_ids)}"
         ",open_access.is_oa:true"
-        ",has_content.pdf:true"
+        f",has_content.pdf:{pdf}"
         f",publication_year:>{min_year}"
       ),
       "sort": "publication_year:desc",

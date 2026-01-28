@@ -118,7 +118,7 @@ async def download_batch_by_journal_async_(
 
 
 async def download_batch_by_journal_async(
-  journal_id: str, batch_size=20, switch_time=30, allow_rotate=True
+  journal_id: str, batch_size=20, switch_time=30, allow_rotate=True, which="PENDING"
 ) -> bool:
   downloader = PDFDownloader(
     DOWNLOAD_DIR_PDFS + "/test/",
@@ -130,11 +130,11 @@ async def download_batch_by_journal_async(
   try:
     with sqlite3.connect(DB_PATH) as conn:
       cursor = conn.cursor()
-      cursor.execute( # change this back to PENDING after
+      cursor.execute(
         f"""
           SELECT openalex_id, oa_urls 
           FROM works 
-          WHERE pdf_download_status = "FAILED" 
+          WHERE pdf_download_status = "{which}" 
             AND journal_id = "{journal_id.upper()}" 
           LIMIT {batch_size}
         """
@@ -166,8 +166,8 @@ async def download_batch_by_journal_async(
 
           except Exception as e:
             error_msg = str(e).lower()
-            print(f"ERROR curr: {error_msg}") # strange no lower here
-            if "Timeout" in error_msg:
+            print(f"ERROR curr: {error_msg}")  # strange no lower here
+            if "timeout" in error_msg:
               status_to_write = "TIMEOUT"
               print(f"\n[!] Timeout detected for {openalex_id}")
             else:
@@ -230,7 +230,12 @@ def download_batch(batch_size=20, switch_time=30, allow_rotate=True) -> bool:
     return False
 
 
-def grobid_batch(journal_id:str, batch_size:int=20, DDIRPDF:str=DOWNLOAD_DIR_PDFS, DDIRTEI:str=DOWNLOAD_DIR_TEIS) -> bool:
+def grobid_batch(
+  journal_id: str,
+  batch_size: int = 20,
+  DDIRPDF: str = DOWNLOAD_DIR_PDFS,
+  DDIRTEI: str = DOWNLOAD_DIR_TEIS,
+) -> bool:
   grobid_handler = GrobidHandler()
   try:
     with sqlite3.connect(DB_PATH) as conn:
@@ -276,6 +281,69 @@ def grobid_batch(journal_id:str, batch_size:int=20, DDIRPDF:str=DOWNLOAD_DIR_PDF
     return False
 
 
+def transform_url_by_journal(journal_id: str):
+  import re
+  try:
+    with sqlite3.connect(DB_PATH) as conn:
+      cursor = conn.cursor()
+      cursor.execute(
+        "SELECT openalex_id, oa_urls FROM works WHERE journal_id = ?",
+        (journal_id.upper(),),
+      )
+      rows = cursor.fetchall()
+
+      if not rows:
+        print("No rows found.")
+        return False
+
+      print(f"Handling {len(rows)} rows")
+
+      updated_count = 0
+      for openalex_id, oa_urls_raw in rows:
+        if not oa_urls_raw:
+          continue
+
+        data = json.loads(oa_urls_raw)
+        links = data.get("pdf_links", [])
+
+        transformed_links = []
+        changed = False
+
+        for url in links:
+          pattern = r"index\.php\?eID=download&id_artikel=(ART\d+)&uid=(\w+)"
+          match = re.search(pattern, url)
+
+          if match:
+            art_id, uid = match.groups()
+            new_url = (
+              f"https://www.waxmann.com/shop/download?"
+              f"tx_p2waxmann_download[action]=download&"
+              f"tx_p2waxmann_download[controller]=Zeitschrift&"
+              f"tx_p2waxmann_download[id_artikel]={art_id}&"
+              f"tx_p2waxmann_download[uid]={uid}"
+            )
+            transformed_links.append(new_url)
+            changed = True
+          else:
+            transformed_links.append(url)
+
+        if changed:
+          data["pdf_links"] = transformed_links
+          cursor.execute(
+            "UPDATE works SET oa_urls = ? WHERE openalex_id = ?",
+            (json.dumps(data), openalex_id),
+          )
+          updated_count += 1
+
+      conn.commit()
+      print(f"Successfully updated {updated_count} records.")
+      return True
+
+  except Exception as e:
+    print(f"An error occurred: {e}")
+    return False
+
+
 SPED_JOURNALS = [
   "s26220619",
   "s133489141",
@@ -290,28 +358,36 @@ SPED_JOURNALS = [
 ]
 
 ED_JOURNALS = [
-  "S2738008561", # mdpi
-  "S2596526815", # frontiers 
+  "S2738008561",  # mdpi
+  "S2596526815",  # frontiers
   "S166722454",  # Springer # TODO: fix FAILED ones
-  "S40639335", # Zeitschrift für Erziehungswissenschaften (Springer)
-  "S4210217710", # Deutsche Schule
+  "S40639335",  # Zeitschrift für Erziehungswissenschaften (Springer)
+  "S4210217710",  # Deutsche Schule
+  "S63113783",
 ]
 
 
-async def main():
+async def main(id: int):
   for journal in ED_JOURNALS[2:]:
     print(journal)
   while True:
-    succ = await download_batch_by_journal_async(ED_JOURNALS[2], 1000, 10, True)
+    succ = await download_batch_by_journal_async(
+      ED_JOURNALS[id], 1000, 100, True, which="PENDING"
+    )
     if not succ:
       break
 
 
 if __name__ == "__main__":
-  #for work in get_journal_by_id(ED_JOURNALS[2], 20, 2016):
-  #   insert_work_metadata_sql(work)
+  N = 5
+  #for work in get_journal_by_id(ED_JOURNALS[N], 20, 2016):
+  #  insert_work_metadata_sql(work)
 
-  # while grobid_batch("S2738008561", 40, DOWNLOAD_DIR_PDFS+"/test/", DOWNLOAD_DIR_TEIS+"/ed/"): ...
-  asyncio.run(main())
+  # transform_url_by_journal(ED_JOURNALS[N])
+
+  # while grobid_batch(ED_JOURNALS[3], 40, DOWNLOAD_DIR_PDFS+"/test/", DOWNLOAD_DIR_TEIS+"/ed/"): ...
+  asyncio.run(main(N))
   # print(handle_url("https://www.tandfonline.com/doi/epdf/10.1080/13603116.2023.2190750?needAccess=true&role=button"))
   # process_dir(DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS)
+  # https://www.waxmann.com/zeitschriften/waxmann-zeitschriftendetails/index.php?eID=download&id_artikel=ART106034&uid=frei
+  # https://www.waxmann.com/shop/download?tx_p2waxmann_download%5Baction%5D=download&tx_p2waxmann_download%5Bcontroller%5D=Zeitschrift&tx_p2waxmann_download%5Bid_artikel%5D=ART106034&tx_p2waxmann_download%5Buid%5D=frei

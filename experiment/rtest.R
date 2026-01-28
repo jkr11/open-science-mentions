@@ -224,9 +224,11 @@ mdpi_ed_index_tei$tei_local_path <- paste0("../test_db/teis/ed/", mdpi_ed_index_
 mdpi_ed_index <- mdpi_ed_index %>%
   mutate(id = tools::file_path_sans_ext(basename(tei_local_path)))
 
-mpdi_ed_papers = metacheck::read(mdpi_ed_index_tei$tei_local_path)
+#mpdi_ed_papers = metacheck::read(mdpi_ed_index_tei$tei_local_path)
 
-save(mpdi_ed_papers, file="mdpi_ed_papers.Rda")
+#save(mpdi_ed_papers, file="mdpi_ed_papers.Rda")
+
+load(file="mdpi_ed_papers.Rda")
 
 mdpi_links <- metacheck::osf_links(mpdi_ed_papers)
 
@@ -376,5 +378,13 @@ p_bottom <- unique_stats %>%
 
 combined_plot <- p_top / p_bottom
 combined_plot
+
+conn_fn <- dbConnect(RSQLite::SQLite(), "../test_db/index.db")
+df_fn <- dbGetQuery(conn, "select * from works")
+df_fn = df_fn %>% filter(journal_id=="S63113783")
+summary(df_fn)
+
+dbDisconnect(conn)
+dbDisconnect(conn_fn)
 
 
