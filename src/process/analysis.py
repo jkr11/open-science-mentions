@@ -97,12 +97,6 @@ class FrontiersHandler:
     return None
 
 if __name__ == "__main__":
-  fh = FrontiersHandler("test_db/teis/ed/0a1bc773e161b46af65be462e0c0c1ac6b677b26de1856e385a78b00ed1bcf17.grobid.tei.xml")
-  asc = fh.get_availibility_score()
-  print(asc)
-  exit(0)
-
-
   import os
   results = []
   for f in os.listdir("test_db/teis/ed/"):

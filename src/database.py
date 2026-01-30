@@ -60,6 +60,7 @@ TO_TEI_QUERY = """ UPDATE works
 SET tei_process_status = ?, tei_local_path = ? 
 WHERE openalex_id = ?; """
 
+
 if __name__ == "__main__":
   #empty_table()
   setup_pipeline_table()

@@ -65,7 +65,7 @@ class PDFDownloader:
   async def _restart_browser(self):
     if self.browser:
       await self._quit_browser()
-    self._init_browser()
+    await self._init_browser()
 
   async def _init_browser(self, geodata: Dict | None = None):
     options = Options()
@@ -94,6 +94,9 @@ class PDFDownloader:
       "Page.setDownloadBehavior",
       {"behavior": "allow", "downloadPath": self.tmpdir},
     )
+
+    await self.browser.switch_to.new_window("tab", url="chrome://settings/content/pdfDocuments", activate=True, background=True)
+    await asyncio.sleep(10)
 
     if geodata:
       if "lat" in geodata and "lon" in geodata:
@@ -194,7 +197,7 @@ class PDFDownloader:
           async with aiofiles.open(tmp_path, "wb") as f:
             await f.write(await response.read())
           self.log(f"[*] SUCCESS: downloaded {url} using request.")
-          return self._finalize_download(tmppath=tmp_path)
+          return self._finalize_download(tmppath=tmp_path, url=url)
 
     except Exception as e:
       print(f"[x] Error downloading PDF: {e} using requests")

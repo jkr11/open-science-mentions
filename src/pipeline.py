@@ -2,12 +2,14 @@ from database import DB_PATH, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS
 from fetch import extract_pdf_locations, get_journal_by_id
 from process.download import PDFDownloader
 from process.grobid import GrobidHandler
+import vpn
 from typing import Any
 import sqlite3
 import json
 import asyncio
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
+from websockets.exceptions import ConnectionClosedError
 
 PSYCH_JOURNALS = ["s9692511", "s27228949"]
 
@@ -158,15 +160,20 @@ async def download_batch_by_journal_async(
         for url in urls:
           try:
             url = handle_url(url)
-            final_path = await downloader.download_browser(url)
+            final_path = await downloader.download(url)
 
             if final_path:
               status_to_write = "DONE"
               break
 
+          except ConnectionClosedError as e:
+            import os
+
+            print(f"\n[FATAL] Browser connection lost: {e}")
+            print("Terminating to cancel downloads. Restart the browser.")
+            os._exit(1)
           except Exception as e:
             error_msg = str(e).lower()
-            print(f"ERROR curr: {error_msg}")  # strange no lower here
             if "timeout" in error_msg:
               status_to_write = "TIMEOUT"
               print(f"\n[!] Timeout detected for {openalex_id}")
@@ -283,6 +290,7 @@ def grobid_batch(
 
 def transform_url_by_journal(journal_id: str):
   import re
+
   try:
     with sqlite3.connect(DB_PATH) as conn:
       cursor = conn.cursor()
@@ -363,7 +371,7 @@ ED_JOURNALS = [
   "S166722454",  # Springer # TODO: fix FAILED ones
   "S40639335",  # Zeitschrift für Erziehungswissenschaften (Springer)
   "S4210217710",  # Deutsche Schule
-  "S63113783",
+  "S63113783",  # Zeitschrift für Pädagogik
 ]
 
 
@@ -372,7 +380,7 @@ async def main(id: int):
     print(journal)
   while True:
     succ = await download_batch_by_journal_async(
-      ED_JOURNALS[id], 1000, 100, True, which="PENDING"
+      ED_JOURNALS[id], 1000, 100, True, which="TIMEOUT"
     )
     if not succ:
       break
@@ -380,14 +388,11 @@ async def main(id: int):
 
 if __name__ == "__main__":
   N = 5
-  #for work in get_journal_by_id(ED_JOURNALS[N], 20, 2016):
+  # vpn.rotate_vpn_server()
+  # for work in get_journal_by_id(ED_JOURNALS[N], 20, 2016):
   #  insert_work_metadata_sql(work)
 
   # transform_url_by_journal(ED_JOURNALS[N])
 
   while grobid_batch(ED_JOURNALS[N], 40, DOWNLOAD_DIR_PDFS+"/test/", DOWNLOAD_DIR_TEIS+"/ed/"): ...
   # asyncio.run(main(N))
-  # print(handle_url("https://www.tandfonline.com/doi/epdf/10.1080/13603116.2023.2190750?needAccess=true&role=button"))
-  # process_dir(DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS)
-  # https://www.waxmann.com/zeitschriften/waxmann-zeitschriftendetails/index.php?eID=download&id_artikel=ART106034&uid=frei
-  # https://www.waxmann.com/shop/download?tx_p2waxmann_download%5Baction%5D=download&tx_p2waxmann_download%5Bcontroller%5D=Zeitschrift&tx_p2waxmann_download%5Bid_artikel%5D=ART106034&tx_p2waxmann_download%5Buid%5D=frei

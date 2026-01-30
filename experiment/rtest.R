@@ -2,7 +2,7 @@ library(metacheck)
 library(RSQLite)
 library(dplyr)
 library(ggplot2)
-
+library(tidyverse)
 load_object <- function(file) {
   tmp <- new.env()
   load(file = file, envir = tmp)
@@ -14,7 +14,7 @@ df <- dbGetQuery(conn, "select * from works")
 head(df, 5)
 
 cur_db <- df
-save(cur_db, file="cur_dvb.Rda")
+save(cur_db, file = "cur_dvb.Rda")
 
 df <- df %>% filter(!is.na(pdf_local_path))
 
@@ -40,10 +40,15 @@ links <- metacheck::osf_links(paper)
 library(purrr)
 
 sped_teis <- sped_teis %>%
-  mutate(links = map(tei_local_path, ~{
-    p <- metacheck::read(.x)
-    metacheck::osf_links(p)
-  }))
+  mutate(
+    links = map(
+      tei_local_path,
+      ~ {
+        p <- metacheck::read(.x)
+        metacheck::osf_links(p)
+      }
+    )
+  )
 
 sped_teis %>% select(tei_local_path, links)
 
@@ -65,8 +70,13 @@ frontiers_ed_index <- df %>%
   filter(journal_id == "S2596526815") %>%
   tibble() %>%
   filter(tei_process_status == "DONE")
-frontiers_ed_index$tei_local_path <- paste0("test_db/teis/ed/", frontiers_ed_index$tei_local_path)
-frontiers_ed_papers <- metacheck::read(as.vector(frontiers_ed_index$tei_local_path))
+frontiers_ed_index$tei_local_path <- paste0(
+  "test_db/teis/ed/",
+  frontiers_ed_index$tei_local_path
+)
+frontiers_ed_papers <- metacheck::read(as.vector(
+  frontiers_ed_index$tei_local_path
+))
 
 save(frontiers_ed_papers, file = "paperData.Rda")
 
@@ -104,10 +114,15 @@ frontiers_ed_index <- df2 %>%
   tibble() %>%
   filter(tei_process_status == "DONE")
 
-frontiers_ed_index$tei_local_path <- paste0("../test_db/teis/ed/", frontiers_ed_index$tei_local_path) # Make sure to only do this once.
-frontiers_ed_papers <- metacheck::read(as.vector(frontiers_ed_index$tei_local_path))
+frontiers_ed_index$tei_local_path <- paste0(
+  "../test_db/teis/ed/",
+  frontiers_ed_index$tei_local_path
+) # Make sure to only do this once.
+frontiers_ed_papers <- metacheck::read(as.vector(
+  frontiers_ed_index$tei_local_path
+))
 
-save(frontiers_ed_papers, file="frontiers_ed_papers.Rda")
+save(frontiers_ed_papers, file = "frontiers_ed_papers.Rda")
 
 frontiers_ed_index <- frontiers_ed_index %>%
   mutate(id = tools::file_path_sans_ext(basename(tei_local_path)))
@@ -115,10 +130,10 @@ frontiers_ed_index <- frontiers_ed_index %>%
 print(frontiers_ed_papers)
 meta_df <- info_table(frontiers_ed_papers)
 
-save(meta_df, file="meta_df.Rda")
+save(meta_df, file = "meta_df.Rda")
 
 links <- metacheck::osf_links(frontiers_ed_papers)
-save(links, file="links.Rda")
+save(links, file = "links.Rda")
 
 git_links <- metacheck::github_links(frontiers_ed_index) %>% filter()
 
@@ -142,22 +157,22 @@ print(aug_table)
 statement_analysis <- aug_table |>
   mutate(
     analysis_result = map_int(
-      filename, 
-      call_fastapi, 
+      filename,
+      call_fastapi,
       .progress = "Analyzing files..."
     )
   )
 
 statement_analysis <- statement_analysis %>% select(id, analysis_result)
 
-# total_statements <- 
+# total_statements <-
 
 library(dplyr)
 library(tidyr)
 library(ggplot2)
 
 all_linked_ids <- bind_rows(
-  select(links, id), 
+  select(links, id),
   select(git_links, id)
 ) %>%
   distinct(id)
@@ -219,7 +234,10 @@ mdpi_ed_index <- df2 %>%
 
 mdpi_ed_index_tei <- mdpi_ed_index %>% filter(tei_process_status == "DONE")
 
-mdpi_ed_index_tei$tei_local_path <- paste0("../test_db/teis/ed/", mdpi_ed_index_tei$tei_local_path) # Make sure to only do this once.
+mdpi_ed_index_tei$tei_local_path <- paste0(
+  "../test_db/teis/ed/",
+  mdpi_ed_index_tei$tei_local_path
+) # Make sure to only do this once.
 
 mdpi_ed_index <- mdpi_ed_index %>%
   mutate(id = tools::file_path_sans_ext(basename(tei_local_path)))
@@ -228,11 +246,12 @@ mdpi_ed_index <- mdpi_ed_index %>%
 
 #save(mpdi_ed_papers, file="mdpi_ed_papers.Rda")
 
-load(file="mdpi_ed_papers.Rda")
+load(file = "mdpi_ed_papers.Rda")
 
 mdpi_links <- metacheck::osf_links(mpdi_ed_papers)
 
-mdpi_git_links <- metacheck::github_links(mpdi_ed_papers) %>% filter(!str_detect("github", text))
+mdpi_git_links <- metacheck::github_links(mpdi_ed_papers) %>%
+  filter(!str_detect("github", text))
 
 mdpi_git_links <- mdpi_git_links %>% filter(str_detect(text, "github"))
 
@@ -242,17 +261,20 @@ mdpi_git_links <- head(mdpi_git_links, 64)
 mdpi_git_files <- metacheck::github_languages(mdpi_git_links)
 
 res <- lapply(mdpi_git_links, function(x) {
-  out <- tryCatch({
-    github_languages(x)
-  }, error = function(e) {
-    return(NULL)
-  })
-  
+  out <- tryCatch(
+    {
+      github_languages(x)
+    },
+    error = function(e) {
+      return(NULL)
+    }
+  )
+
   if (!is.null(out) && is.data.frame(out)) {
     out$bytes <- as.numeric(out$bytes)
     out$language <- as.character(out$language)
   }
-  
+
   return(out)
 })
 
@@ -267,7 +289,7 @@ print(repo_summary)
 
 mdpi_meta_df <- info_table(mpdi_ed_papers)
 
-save(mdpi_meta_df, file="mdpi_meta_df.Rda")
+save(mdpi_meta_df, file = "mdpi_meta_df.Rda")
 
 mdpi_aug_table = mdpi_meta_df %>%
   left_join(select(mdpi_ed_index, id, publication_year), by = "id")
@@ -279,22 +301,25 @@ mdpi_aug_table <- mdpi_aug_table %>%
 
 gitlab_links <- function(paper) {
   strip_text <- search_text(paper, ".*[^\\.$]", return = "match", perl = TRUE)
-  
+
   github_regex <- "(?:https?://)?gitlab\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*"
-  found_gh <- search_text(strip_text, github_regex, return = "match", perl = TRUE)
-  
+  found_gh <- search_text(
+    strip_text,
+    github_regex,
+    return = "match",
+    perl = TRUE
+  )
+
   no_github_regex <- "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\\.git)?"
   other_gh <- search_text(strip_text, "gitlab") |>
     search_text(github_regex, exclude = TRUE, perl = TRUE) |>
     search_text("gitlab.io", exclude = TRUE) |>
     search_text(no_github_regex, return = "match", perl = TRUE)
-  
+
   all_gh <- dplyr::bind_rows(found_gh, other_gh)
-  
+
   return(all_gh)
 }
-
-
 
 
 mdpi_gitlab_links <- gitlab_links(mpdi_ed_papers)
@@ -310,7 +335,7 @@ total_papers_per_year <- mdpi_aug_table %>%
   summarise(total_papers = n_distinct(id), .groups = "drop")
 
 all_linked_ids <- bind_rows(
-  select(mdpi_links, id), 
+  select(mdpi_links, id),
   select(mdpi_git_links, id)
 ) %>%
   distinct(id)
@@ -332,15 +357,16 @@ library(patchwork)
 
 paper_2_stats <- function(paper_df, index_df) {
   meta_df <- info_table(paper_df)
-  index_df %>%
+  index_df <- index_df %>%
     mutate(id = tools::file_path_sans_ext(basename(tei_local_path)))
-  
+
   exclude_patterns <- "(?i)editorial|correction|erratum|errata|author statement|retraction|book review|commentary"
-  
+
   meta_df <- meta_df %>%
     filter(!str_detect(title, exclude_patterns))
-  
-  aug_df <- meta_df %>% left_join(select(index_df, id, publication_year), by = "id")
+
+  aug_df <- meta_df %>%
+    left_join(select(index_df, id, publication_year), by = "id")
   return(aug_df)
 }
 
@@ -379,8 +405,23 @@ p_bottom <- unique_stats %>%
 combined_plot <- p_top / p_bottom
 combined_plot
 
+library(stringr)
+
 conn_fn <- dbConnect(RSQLite::SQLite(), "../test_db/index.db")
 pedocs_df <- dbGetQuery(conn_fn, "select * from works")
 pedocs_index = pedocs_df %>% filter(journal_id == "S63113783")
-mdpi_ed_index_tei$tei_local_path <- paste0("../test_db/teis/ed/", mdpi_ed_index_tei$tei_local_path)
+pedocs_index$tei_local_path <- paste0(
+  "../test_db/teis/ed/",
+  pedocs_index$tei_local_path
+)
+pedocs_papers <- metacheck::read(pedocs_index$tei_local_path)
+pedocs_meta_df <- info_table(pedocs_papers)
+pedocs_osf_links <- metacheck::osf_links(pedocs_papers)
 
+pedocs_stats <- paper_2_stats(pedocs_papers, pedocs_index)
+print(pedocs_stats)
+pedocs_result <- pedocs_osf_links %>%
+  left_join(select(pedocs_stats, id, publication_year))
+print(unique(pedocs_result))
+
+pedocs_git_links <- metacheck::github_links(pedocs_papers)
