@@ -8,7 +8,13 @@ SERVER_POOL = [("us", "nyc"), ("de", "fra"), ("se", "sto"), ("nl", "ams")]
 # TODO: add more vpn options like nord
 
 
-def rotate_vpn_server():
+def rotate_vpn_server() -> None:
+  """
+  Rotates Mullvad VPN
+
+  Moves the vpn node to one of the locations given in SERVER_POOL.
+  - SERVER_POOL = [("us", "nyc"), ("de", "fra"), ("se", "sto"), ("nl", "ams"), ...]
+  """
   try:
     country, city = random.choice(SERVER_POOL)
     print(f"--- Attempting rotation to new server: {country} {city} ---")
@@ -36,15 +42,9 @@ def rotate_vpn_server():
     ).stdout
     print(status_check)
     print("-" * 50)
-    return True
   except subprocess.CalledProcessError as e:
     print("\n Subprocess ERROR during rotation")
     print(f"Command failed: {e.cmd}")
     print(f"Return code: {e.returncode}")
     print(f"Error output (stderr):\n{e.stderr.strip()}")
     print("-" * 50)
-    pass
-
-
-# if __name__ == "__main__":
-#  rotate_vpn_server()

@@ -1,6 +1,5 @@
 from grobid_client.grobid_client import GrobidClient
 from pathlib import Path
-import os
 
 config_path = Path.cwd() / "configs" / "grobid_config.json"
 
@@ -15,8 +14,8 @@ class GrobidHandler:
     if self.client is None:
       exit
 
-    output_path = Path(output_path)
-    output_path.mkdir(parents=True, exist_ok=True)
+    _output_path = Path(output_path)
+    _output_path.mkdir(parents=True, exist_ok=True)
 
     # print(files[0])
 
@@ -24,7 +23,7 @@ class GrobidHandler:
       self.client.process_batch(
         service="processFulltextDocument",
         input_files=files,
-        output=output_path,
+        output=_output_path,
         n=10,
         json_output=True,
         verbose=True,
@@ -45,7 +44,7 @@ class GrobidHandler:
     results: dict[str, str] = {}
     for pdf in files:
       tei_name = Path(pdf).with_suffix(".grobid.tei.xml").name
-      tei_path = output_path / tei_name
+      tei_path = _output_path / tei_name
       if tei_path.exists() and tei_path.stat().st_size > 0:
         results[pdf] = tei_name
       else:
