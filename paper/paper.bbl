@@ -1,0 +1,131 @@
+%%% -*-BibTeX-*-
+%%% Do NOT edit. File created by BibTeX with style
+%%% ACM-Reference-Format-Journals [18-Jan-2012].
+
+\begin{thebibliography}{9}
+
+%%% ====================================================================
+%%% NOTE TO THE USER: you can override these defaults by providing
+%%% customized versions of any of these macros before the \bibliography
+%%% command.  Each of them MUST provide its own final punctuation,
+%%% except for \shownote{} and \showURL{}.  The latter two
+%%% do not use final punctuation, in order to avoid confusing it with
+%%% the Web address.
+%%%
+%%% To suppress output of a particular field, define its macro to expand
+%%% to an empty string, or better, \unskip, like this:
+%%%
+%%% \newcommand{\showURL}[1]{\unskip}   % LaTeX syntax
+%%%
+%%% \def \showURL #1{\unskip}           % plain TeX syntax
+%%%
+%%% ====================================================================
+
+\ifx \showCODEN    \undefined \def \showCODEN     #1{\unskip}     \fi
+\ifx \showISBNx    \undefined \def \showISBNx     #1{\unskip}     \fi
+\ifx \showISBNxiii \undefined \def \showISBNxiii  #1{\unskip}     \fi
+\ifx \showISSN     \undefined \def \showISSN      #1{\unskip}     \fi
+\ifx \showLCCN     \undefined \def \showLCCN      #1{\unskip}     \fi
+\ifx \shownote     \undefined \def \shownote      #1{#1}          \fi
+\ifx \showarticletitle \undefined \def \showarticletitle #1{#1}   \fi
+\ifx \showURL      \undefined \def \showURL       {\relax}        \fi
+% The following commands are used for tagged output and should be
+% invisible to TeX
+\providecommand\bibfield[2]{#2}
+\providecommand\bibinfo[2]{#2}
+\providecommand\natexlab[1]{#1}
+\providecommand\showeprint[2][]{arXiv:#2}
+
+\bibitem[noa({[n.\,d.]})]%
+        {noauthor_academic_nodate}
+ \bibinfo{year}{[n.\,d.]}\natexlab{}.
+\newblock \bibinfo{title}{Academic {Job} {Posting} {Service}}.
+\newblock
+\urldef\tempurl%
+\url{https://www.hochschulverband.de/en/services/academic-job-posting-service}
+\showURL{%
+\tempurl}
+
+
+\bibitem[GRO(2025)]%
+        {GROBID}
+ \bibinfo{year}{2008--2025}\natexlab{}.
+\newblock \bibinfo{title}{GROBID}.
+\newblock \bibinfo{howpublished}{\url{https://github.com/kermitt2/grobid}}.
+\newblock
+\showeprint[swh]{1:dir:dab86b296e3c3216e2241968f0d63b68e8209d3c}
+
+
+\bibitem[mul(2025)]%
+        {mullvad_2025}
+ \bibinfo{year}{2025}\natexlab{}.
+\newblock \bibinfo{booktitle}{\emph{mullvad-vpn: Release 2025.14}}.
+\newblock
+\urldef\tempurl%
+\url{https://mullvad.net/en}
+\showURL{%
+\tempurl}
+
+
+\bibitem[Bachmann(2025)]%
+        {max_bachmann_2025_15133267}
+\bibfield{author}{\bibinfo{person}{Max Bachmann}.} \bibinfo{year}{2025}\natexlab{}.
+\newblock \bibinfo{booktitle}{\emph{rapidfuzz/RapidFuzz: Release 3.13.0}}.
+\newblock
+\href{https://doi.org/10.5281/zenodo.15133267}{doi:\nolinkurl{10.5281/zenodo.15133267}}
+
+
+\bibitem[DeBruine and Lakens(2026)]%
+        {metacheck}
+\bibfield{author}{\bibinfo{person}{Lisa DeBruine} {and} \bibinfo{person}{Daniel Lakens}.} \bibinfo{year}{2026}\natexlab{}.
+\newblock \bibinfo{booktitle}{\emph{metacheck: Check Research Outputs for Best Practices}}.
+\newblock
+\urldef\tempurl%
+\url{https://github.com/scienceverse/metacheck}
+\showURL{%
+\tempurl}
+\newblock
+\shownote{R package version 0.0.0.9065}.
+
+
+\bibitem[Priem et~al\mbox{.}(2022)]%
+        {priem_openalex_2022}
+\bibfield{author}{\bibinfo{person}{Jason Priem}, \bibinfo{person}{Heather Piwowar}, {and} \bibinfo{person}{Richard Orr}.} \bibinfo{year}{2022}\natexlab{}.
+\newblock \bibinfo{title}{{OpenAlex}: {A} fully-open index of scholarly works, authors, venues, institutions, and concepts}.
+\newblock
+\href{https://doi.org/10.48550/arXiv.2205.01833}{doi:\nolinkurl{10.48550/arXiv.2205.01833}}
+\newblock
+\shownote{arXiv:2205.01833 [cs]}.
+
+
+\bibitem[{R Core Team}(2025)]%
+        {R_dev}
+\bibfield{author}{\bibinfo{person}{{R Core Team}}.} \bibinfo{year}{2025}\natexlab{}.
+\newblock \bibinfo{booktitle}{\emph{R: A Language and Environment for Statistical Computing}}.
+\newblock R Foundation for Statistical Computing, Vienna, Austria.
+\newblock
+\urldef\tempurl%
+\url{https://www.R-project.org/}
+\showURL{%
+\tempurl}
+
+
+\bibitem[Rieser(2025)]%
+        {author_software}
+\bibfield{author}{\bibinfo{person}{Jeremias Rieser}.} \bibinfo{year}{2025}\natexlab{}.
+\newblock \bibinfo{title}{Open Science Mentions}.
+\newblock \bibinfo{howpublished}{\url{https://github.com/jkr11/open-science-mentions}}.
+\newblock
+
+
+\bibitem[Wu et~al\mbox{.}(2021)]%
+        {wu_predicting_2021}
+\bibfield{author}{\bibinfo{person}{Jian Wu}, \bibinfo{person}{Rajal Nivargi}, \bibinfo{person}{Sree Sai~Teja Lanka}, \bibinfo{person}{Arjun~Manoj Menon}, \bibinfo{person}{Sai~Ajay Modukuri}, \bibinfo{person}{Nishanth Nakshatri}, \bibinfo{person}{Xin Wei}, \bibinfo{person}{Zhuoer Wang}, \bibinfo{person}{James Caverlee}, \bibinfo{person}{Sarah~M. Rajtmajer}, {and} \bibinfo{person}{C.~Lee Giles}.} \bibinfo{year}{2021}\natexlab{}.
+\newblock \bibinfo{title}{Predicting the {Reproducibility} of {Social} and {Behavioral} {Science} {Papers} {Using} {Supervised} {Learning} {Models}}.
+\newblock
+\href{https://doi.org/10.48550/arXiv.2104.04580}{doi:\nolinkurl{10.48550/arXiv.2104.04580}}
+\newblock
+\shownote{arXiv:2104.04580 [cs]}.
+
+
+\end{thebibliography}

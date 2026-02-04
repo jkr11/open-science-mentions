@@ -425,3 +425,9 @@ pedocs_result <- pedocs_osf_links %>%
 print(unique(pedocs_result))
 
 pedocs_git_links <- metacheck::github_links(pedocs_papers)
+
+conn <- dbConnect(RSQLite::SQLite(), "../test_db/index.db")
+df <- dbGetQuery(conn, "select * from works")
+
+waxmann <- df %>% filter(journal_id == "S4210217710")
+print(waxmann$pdf_local_path)

@@ -370,8 +370,8 @@ ED_JOURNALS = [
   "S2596526815",  # frontiers
   "S166722454",  # Springer # TODO: fix FAILED ones
   "S40639335",  # Zeitschrift für Erziehungswissenschaften (Springer)
-  "S4210217710",  # Deutsche Schule
-  "S63113783",  # Zeitschrift für Pädagogik
+  "S4210217710",  # Deutsche Schule (Waxmann)
+  "S63113783",  # Zeitschrift für Pädagogik (Pedocs)
 ]
 
 
@@ -387,12 +387,12 @@ async def main(id: int):
 
 
 if __name__ == "__main__":
-  N = 5
+  N = 3
   # vpn.rotate_vpn_server()
-  # for work in get_journal_by_id(ED_JOURNALS[N], 20, 2016):
-  #  insert_work_metadata_sql(work)
+  for work in get_journal_by_id(ED_JOURNALS[N], 20, 2016):
+    insert_work_metadata_sql(work)
 
   # transform_url_by_journal(ED_JOURNALS[N])
 
-  while grobid_batch(ED_JOURNALS[N], 40, DOWNLOAD_DIR_PDFS+"/test/", DOWNLOAD_DIR_TEIS+"/ed/"): ...
+  # while grobid_batch(ED_JOURNALS[N], 40, DOWNLOAD_DIR_PDFS+"/test/", DOWNLOAD_DIR_TEIS+"/ed/"): ...
   # asyncio.run(main(N))
