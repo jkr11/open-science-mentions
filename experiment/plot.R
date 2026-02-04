@@ -12,7 +12,8 @@ paper_2_df <- function(paper_df, index_df) {
   meta_df <- info_table(paper_df)
   index_df <- index_df %>%
     mutate(id = tools::file_path_sans_ext(basename(tei_local_path)))
-
+  
+  # filter out non papers
   exclude_patterns <- "(?i)editorial|correction|erratum|errata|author statement|retraction|book review|commentary"
 
   meta_df <- meta_df %>%
@@ -63,27 +64,18 @@ get_journal_stats <- function(target_journal_id, db_path = "../test_db/index.db"
   return(list(final_result, stats))
 }
 
-get_download_statistics <- function(target_journal_id) {
-  conn <- dbConnect(RSQLite::SQLite(), "../test_db/index.db")
-  query <- sprintf("SELECT * FROM works WHERE journal_id = '%s'", target_journal_id)
-  index <- dbGetQuery(conn_fn, query)
-  failed <- index %>% filter(pdf_download_status != "DONE")
-  summary(failed)
-  tei_failed <- index %>% filter(tei_process_status != "DONE")
-  summary(tei_failed)
-  both_failed <- index %>%
-    inner_join(tei_failed, by = "openalex_id") %>%
-    anti_join(failed, by = "openalex_id")
-  summary(both_failed)
-  print(both_failed)
-}
 
-ds_stats <- get_journal_stats("S4210217710") # Deutsche Schule (Waxmann) 1
-ze_stats <- get_journal_stats("S40639335") # Zeitschrift für Erziehungswissenschaft (Springer) 35 # 464
-zp_stats <- get_journal_stats("S63113783") # Zeitschrift für Paedagogik (Pedocs) 1
-save(ds_stats, file = "ds_stats.Rda")
-save(ze_stats, file = "ze_stats.Rda")
-save(zp_stats, file = "zp_stats.Rda")
+
+#ds_stats <- get_journal_stats("S4210217710") # Deutsche Schule (Waxmann) 1
+#ze_stats <- get_journal_stats("S40639335") # Zeitschrift für Erziehungswissenschaft (Springer) 35 # 464
+#zp_stats <- get_journal_stats("S63113783") # Zeitschrift für Paedagogik (Pedocs) 1
+#save(ds_stats, file = "ds_stats.Rda")
+#save(ze_stats, file = "ze_stats.Rda")
+#save(zp_stats, file = "zp_stats.Rda")
+load("zp_stats.Rda")
+load("ze_stats.Rda")
+load("ds_stats.Rda")
+
 
 ds_table <- ds_stats[[2]]
 print(ds_links)
@@ -92,7 +84,7 @@ ze_table <- ze_stats[[2]]
 ze_links <- ze_stats[[1]]
 zp_table <- zp_stats[[2]]
 zp_links <- zp_stats[[1]]
-zp_table <- zp_table %>% mutate(publication_year = format(as.Date(publication_year, format = "%d.%m.%Y"), "%Y"))
+zp_table <- zp_table %>% mutate(publication_year = format(as.Date(publication_year, format = "%d.%m.%Y"), "%Y")) # TODO: fix this in database
 
 proportion_stats <- function(table_df, links_df) {
   per_year <- table_df %>%

@@ -11,8 +11,6 @@ from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 from websockets.exceptions import ConnectionClosedError
 
-PSYCH_JOURNALS = ["s9692511", "s27228949"]
-
 
 def insert_work_metadata_sql(work: dict[str, Any]) -> None:
   """Inserts a single OpenAlex work's core metadata into the database."""
@@ -161,11 +159,9 @@ async def download_batch_by_journal_async(
           try:
             url = handle_url(url)
             final_path = await downloader.download(url)
-
             if final_path:
               status_to_write = "DONE"
               break
-
           except ConnectionClosedError as e:
             import os
 
@@ -353,10 +349,10 @@ def transform_url_by_journal(journal_id: str):
 
 
 SPED_JOURNALS = [
-  "s26220619",
-  "s133489141",
-  "s136622136",
-  "s38537713",
+  "s26220619",  # Journal of special education (SAGE)
+  "s133489141",  # International journal of inclusive education
+  "s136622136",  # European Journal of special needs Education
+  "s38537713",  # International Journal of disabililty Developement and Education
   "s193250556",
   "s93932044",
   "s2738745139",
@@ -366,33 +362,58 @@ SPED_JOURNALS = [
 ]
 
 ED_JOURNALS = [
-  "S2738008561",  # mdpi
-  "S2596526815",  # frontiers
-  "S166722454",  # Springer # TODO: fix FAILED ones
+  "S166722454",  # Education and Information Technologies (Springer), 34%
+  "S2738008561",  # Education Sciences (MDPI),  100%
+  "s110346167",  # British Journal of education technology (Wiley), 16.9%
+  "s4210201537",  # International Journal of Educational Technology in Higher Education (Springer), 99.8%
+  "s94618750",  # Teaching and Teacher Education (Science Direct, Pedocs), 20.3%
+  "S2596526815",  # Frontiers in Education (Frontiers), 100%
+  "s187318745",  # Educational Psychology Review (Springer), 33.6%
+  "s162196882",  # Studies in Higher Education (Taylor & Francis), 20.9%
+  "s114840262",  # Educational Technology Research and Developement, 18.9%
+  "s94908168",  # Higher Education (Springer), 21.3%
+  "s42886211",  # Thinking Skills and Creativity, 20.7%
+  "s130873806",  # System (Elsevier), 7.62%
+  "s2737327475",  # International Journal of Instruction, 100%
+  "s5743915",  # Journal of Computer Assisted Learning, 27.6%
+  "s43764696",  # Educational Research Review, 15.6%
+  "s135394783",  # The International Journal of Management Education, 24.1%
+  "s142259175",  # Assessment & Evaluation in Higher Education, 15.2%
+  "s133489141",  # International Journal of Inclusive Education, 16.4%
+  "s78398831",  # Learning and Instruction, 23.8%
+  "s179605291",  # Language Teaching Research, 15.7%
+]
+
+DE_JOURNALS = [
   "S40639335",  # Zeitschrift für Erziehungswissenschaften (Springer)
   "S4210217710",  # Deutsche Schule (Waxmann)
   "S63113783",  # Zeitschrift für Pädagogik (Pedocs)
 ]
 
+PSYCH_JOURNALS = [
+  "s9692511",  # Frontiers in psychology (FRONTIERS)
+  "s27228949",  # Perspectives on psychological sciences (SAGE)
+]
 
-async def main(id: int):
-  for journal in ED_JOURNALS[2:]:
+
+async def main(N: int):
+  for journal in ED_JOURNALS:
     print(journal)
   while True:
     succ = await download_batch_by_journal_async(
-      ED_JOURNALS[id], 1000, 100, True, which="TIMEOUT"
+      ED_JOURNALS[N], 1000, 100, True, which="PENDING"
     )
     if not succ:
       break
 
 
 if __name__ == "__main__":
-  N = 3
-  # vpn.rotate_vpn_server()
-  for work in get_journal_by_id(ED_JOURNALS[N], 20, 2016):
-    insert_work_metadata_sql(work)
+  N = 4
+  vpn.rotate_vpn_server()
+  # for work in get_journal_by_id(ED_JOURNALS[N], 20, 2016):
+  #  insert_work_metadata_sql(work)
+  asyncio.run(main(N))
 
   # transform_url_by_journal(ED_JOURNALS[N])
 
   # while grobid_batch(ED_JOURNALS[N], 40, DOWNLOAD_DIR_PDFS+"/test/", DOWNLOAD_DIR_TEIS+"/ed/"): ...
-  # asyncio.run(main(N))

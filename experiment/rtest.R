@@ -431,3 +431,20 @@ df <- dbGetQuery(conn, "select * from works")
 
 waxmann <- df %>% filter(journal_id == "S4210217710")
 print(waxmann$pdf_local_path)
+
+
+
+get_download_statistics <- function(target_journal_id) {
+  conn <- dbConnect(RSQLite::SQLite(), "../test_db/index.db")
+  query <- sprintf("SELECT * FROM works WHERE journal_id = '%s'", target_journal_id)
+  index <- dbGetQuery(conn_fn, query)
+  failed <- index %>% filter(pdf_download_status != "DONE")
+  summary(failed)
+  tei_failed <- index %>% filter(tei_process_status != "DONE")
+  summary(tei_failed)
+  both_failed <- index %>%
+    inner_join(tei_failed, by = "openalex_id") %>%
+    anti_join(failed, by = "openalex_id")
+  summary(both_failed)
+  print(both_failed)
+}

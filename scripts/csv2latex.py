@@ -6,9 +6,10 @@ import argparse
 def main():
   parser = argparse.ArgumentParser(description="Convert CSV to a LaTeX table.")
   parser.add_argument("input_csv", help="Input CSV file")
-  parser.add_argument("-c", "--caption", help="Caption")
+  parser.add_argument("-c", "--caption", help="Caption", default="")
   parser.add_argument("-o", "--output", help="Output .tex file (default: stdout)")
   args = parser.parse_args()
+
 
   with open(args.input_csv, newline="", encoding="utf-8") as f:
     rows = list(csv.reader(f))
@@ -17,13 +18,14 @@ def main():
   body = rows[1:]
   print(header[0].split(";"))
   n = len(header[0].split(";"))
+  print(n)
 
   col_format = "|" + "|".join(["l"] * n) + "|"
   print(f"Col format: {col_format}")
   lines = []
   lines.append(r"\begin{table}[h]")
   lines.append(r"\centering")
-  lines.append(r"\caption{" + args.caption +"}")
+  lines.append(r"\caption{" + args.caption + "}")
   lines.append(r"\begin{tabular}{" + col_format + "}")
   lines.append(r"\hline")
   lines.append(" & ".join(header[0].split(";")) + r" \\ \hline")
