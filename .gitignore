@@ -10,7 +10,6 @@ pdf_work
 db/
 *.db
 test_data/
-results/
 .vscode
 testdata/
 .python-version

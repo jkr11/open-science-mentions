@@ -166,8 +166,10 @@ clean_links <- function(link_column) {
       .x %>%
         str_trim() %>%
         str_to_lower() %>%
+        str_remove("^https?://") %>%
         str_remove_all("/+$") %>%
         unique() %>%
+        str_c("https://", .) %>%
         paste(collapse = "; ")
     }
   )
