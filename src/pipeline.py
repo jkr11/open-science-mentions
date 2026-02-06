@@ -64,7 +64,7 @@ async def download_batch_by_journal_async_(
   journal_id: str, batch_size=20, switch_time=30, allow_rotate=False
 ) -> bool:
   downloader = PDFDownloader(
-    DOWNLOAD_DIR_PDFS + "/test/",
+    DOWNLOAD_DIR_PDFS,
     allow_rotate=allow_rotate,
     switch_time=switch_time,
     headless=False,
@@ -121,7 +121,7 @@ async def download_batch_by_journal_async(
   journal_id: str, batch_size=20, switch_time=30, allow_rotate=True, which="PENDING"
 ) -> bool:
   downloader = PDFDownloader(
-    DOWNLOAD_DIR_PDFS + "/test/",
+    DOWNLOAD_DIR_PDFS,
     allow_rotate=allow_rotate,
     switch_time=switch_time,
     headless=False,
@@ -348,6 +348,38 @@ def transform_url_by_journal(journal_id: str):
     return False
 
 
+def prune_invalid_pdfs(batch_size: int = 200):
+  try:
+    with sqlite3.connect(DB_PATH) as conn:
+      cursor = conn.cursor()
+      cursor.execute(
+        "SELECT openalex_id, pdf_local_path FROM works WHERE pdf_download_status = 'DONE' LIMIT ?",
+        (batch_size,),
+      )
+      rows = cursor.fetchall()
+
+      if not rows:
+        return
+
+      for work_id, path in rows:
+        try:
+          if os.path.exists(path):
+            with open(path, "r") as f:
+              PdfReader.read(f)
+        except Exception as e:
+          print(f"Pruning invalid PDF at {path}: {e}")
+
+          cursor.execute(
+            "UPDATE works SET pdf_download_status = 'INVALID' WHERE openalex_id = ?",
+            (work_id,),
+          )
+
+      conn.commit()
+
+  except sqlite3.Error as e:
+    print(f"Database error: {e}")
+
+
 SPED_JOURNALS = [
   "s26220619",  # Journal of special education (SAGE)
   "s133489141",  # International journal of inclusive education
@@ -396,24 +428,23 @@ PSYCH_JOURNALS = [
 ]
 
 
-async def main(N: int):
-  for journal in ED_JOURNALS:
-    print(journal)
+async def main(journal_id):
   while True:
     succ = await download_batch_by_journal_async(
-      ED_JOURNALS[N], 1000, 100, True, which="PENDING"
+      journal_id, 1000, 100, True, which="PENDING"
     )
     if not succ:
       break
 
 
 if __name__ == "__main__":
-  N = 4
-  vpn.rotate_vpn_server()
-  # for work in get_journal_by_id(ED_JOURNALS[N], 20, 2016):
-  #  insert_work_metadata_sql(work)
-  asyncio.run(main(N))
+  N = 2
+  # vpn.rotate_vpn_server()
+  # for work in get_journal_by_id([DE_JOURNALS[N]], 100, 2016):
+  #   insert_work_metadata_sql(work)
+  # transform_url_by_journal(DE_JOURNALS[N])
 
-  # transform_url_by_journal(ED_JOURNALS[N])
+  # asyncio.run(main(DE_JOURNALS[N]))
+#
 
-  # while grobid_batch(ED_JOURNALS[N], 40, DOWNLOAD_DIR_PDFS+"/test/", DOWNLOAD_DIR_TEIS+"/ed/"): ...
+  while grobid_batch(DE_JOURNALS[N], 40, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS): ...

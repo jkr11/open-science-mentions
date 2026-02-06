@@ -174,12 +174,12 @@ class PDFDownloader:
   def _finalize_download(self, tmppath: str, url: str) -> str | None:
     final_name = self._hash(url)
     final_path = os.path.join(self.download_dir, final_name)
-    try:
-      PdfReader(tmppath)
-    except PdfReadError:
-      print("Invalid pdf, deleting")
-      os.remove(tmppath)
-      return None
+    #try:
+    #  PdfReader(tmppath)
+    #except PdfReadError:
+    #  print("Invalid pdf, deleting")
+    #  os.remove(tmppath)
+    #  return None
     os.replace(tmppath, final_path)
     self.log(f"Finalized download -> {final_name}")
     return final_path

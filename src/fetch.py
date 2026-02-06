@@ -14,7 +14,7 @@ INDEX_DB = os.path.join(DB_DIR, "openalex_jsonl")
 
 
 def get_journal_by_id(
-  journal_ids: List[str], per_page: int, min_year: int, pdf:bool=False
+  journal_ids: List[str], per_page: int, min_year: int, pdf:bool=True
 ) -> Generator[Any, None, None]:
   """
   Docstring for get_journal_by_id
