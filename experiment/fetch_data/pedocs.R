@@ -30,7 +30,6 @@ pedocs_clean <- pedocs %>%
     )
   )
 
-
 id_map <- oa_fetch(
   entity = "works",
   doi = pedocs_clean$DOI,
@@ -57,7 +56,7 @@ pedocs_final <- pedocs_clean %>%
   )
 
 #update_data <- pedocs_final %>%
-select(openalex_id, publication_year)
+#  select(openalex_id, publication_year)
 
 pedocs_final <- pedocs_final %>%
   mutate(

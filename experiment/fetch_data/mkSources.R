@@ -1,6 +1,8 @@
 library(tidyverse)
 library(httr2)
 
+setwd("experiment/fetch_data")
+
 df <- read.csv("education_journals.csv", sep = ",")
 
 get_oa_stats <- function(journal_id, since_year = NULL) {
