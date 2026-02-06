@@ -6,6 +6,8 @@ setwd("experiment")
 
 files <- c("pedocs-auswahl_1.csv", "pedocs-auswahl_2.csv")
 pedocs <- map_df(files, ~ read_delim(.x, delim = ";", show_col_types = FALSE))
+write.csv(pedocs, file = "pedocs_auswahl.csv", )
+
 
 pedocs_clean <- pedocs %>%
   mutate(
@@ -51,11 +53,48 @@ pedocs_final <- pedocs_clean %>%
     pdf_download_status,
     pdf_local_path,
     tei_process_status,
-    tei_local_path
+    tei_local_path #
   )
 
+#update_data <- pedocs_final %>%
+select(openalex_id, publication_year)
 
-conn_pd <- dbConnect(RSQLite::SQLite(), "../test_db/index.db")
+pedocs_final <- pedocs_final %>%
+  mutate(
+    publication_year = format(
+      as.Date(publication_year, format = "%d.%m.%Y"),
+      "%Y"
+    )
+  )
+
+conn_pd <- dbConnect(RSQLite::SQLite(), "../../db/index.db")
+#
+# dbWriteTable(
+#   conn_pd,
+#   "temp_year_update",
+#   update_data,
+#   overwrite = TRUE,
+#   temporary = TRUE
+# )
+#
+# dbExecute(
+#   conn_pd,
+#   "
+#   UPDATE works
+#   SET publication_year = (
+#     SELECT temp_year_update.publication_year
+#     FROM temp_year_update
+#     WHERE temp_year_update.openalex_id = works.openalex_id
+#   )
+#   WHERE EXISTS (
+#     SELECT 1
+#     FROM temp_year_update
+#     WHERE temp_year_update.openalex_id = works.openalex_id
+#   )
+# "
+# )
+# dbExecute(conn_pd, "DROP TABLE temp_year_update")
+# dbDisconnect(conn_pd)
 
 existing_cols <- dbListFields(conn_pd, "works")
 missing_cols <- setdiff(colnames(pedocs_final), existing_cols)

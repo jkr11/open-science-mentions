@@ -433,10 +433,12 @@ waxmann <- df %>% filter(journal_id == "S4210217710")
 print(waxmann$pdf_local_path)
 
 
-
 get_download_statistics <- function(target_journal_id) {
   conn <- dbConnect(RSQLite::SQLite(), "../test_db/index.db")
-  query <- sprintf("SELECT * FROM works WHERE journal_id = '%s'", target_journal_id)
+  query <- sprintf(
+    "SELECT * FROM works WHERE journal_id = '%s'",
+    target_journal_id
+  )
   index <- dbGetQuery(conn_fn, query)
   failed <- index %>% filter(pdf_download_status != "DONE")
   summary(failed)
@@ -448,3 +450,6 @@ get_download_statistics <- function(target_journal_id) {
   summary(both_failed)
   print(both_failed)
 }
+
+load("cur_dvb.Rda")
+print(cur_db)
