@@ -49,7 +49,9 @@ paper_2_df <- function(paper_df, index_df) {
 
 # use only on non processed papers in xml format.
 get_journal_stats <- function(
-  target_journal_id
+  target_journal_id,
+  previous_stats = NULL,
+  filename = target_journal_id
 ) {
   index <- data_all %>% filter(journal_id == target_journal_id)
 
@@ -63,7 +65,27 @@ get_journal_stats <- function(
 
   if (nrow(index) == 0) {
     stop("Convert to TEI first.")
+  } else {
+    print(nrow(index))
   }
+
+  # If this function was run at a previous time where data_all was not fully populated or new data is now available, use this for an incremental update
+  if (!is.null(previous_stats)) {
+    print(nrow(previous_stats))
+    previous_stats <- previous_stats %>%
+      mutate(doi = paste0("https://doi.org/", doi))
+    index <- index %>% anti_join(previous_stats, by = "doi")
+
+    if (nrow(index) == 0) {
+      message("No new records to process.")
+      return(previous_stats)
+    }
+    print(paste("Processing", nrow(index), "new records..."))
+  } else {
+    print(nrow(index))
+  }
+
+  save_name = str_glue("{filename}.Rda")
 
   index$tei_local_path <- paste0(
     "../../db/teis/",
@@ -71,9 +93,9 @@ get_journal_stats <- function(
   )
 
   # uncomment for new data (!SLOW!)
-  papers <- metacheck::read(index$tei_local_path)
-  save(papers, file = str_glue("{target_journal_id}.Rda"))
-  # load(str_glue("{target_journal_id}.Rda"))
+  #papers <- metacheck::read(index$tei_local_path)
+  #save(papers, file = save_name)
+  load(save_name)
   osf_links <- metacheck::osf_links(papers)
   git_links <- metacheck::github_links(papers)
   stats <- paper_2_df(papers, index)
@@ -105,6 +127,10 @@ get_journal_stats <- function(
       link_count = replace_na(link_count, 0)
     )
 
+  if (!is.null(previous_stats)) {
+    final_stats <- bind_rows(previous_stats, stats)
+    return(final_stats)
+  }
   return(stats)
 }
 
@@ -119,8 +145,17 @@ save(zp_stats, file = "zp_stats.Rda")
 # load("ze_stats.Rda")
 # load("ds_stats.Rda"
 
-mdpi_stats <- get_journal_stats("S2738008561")
-save(mdpi_stats, file = "mdpi_stats.Rda")
+#mdpi_stats <- get_journal_stats("S2738008561")
+#save(mdpi_stats, file = "mdpi_stats.Rda")
+load(file = "mdpi_stats.Rda")
+
+
+mdpi_stats_2 <- get_journal_stats(
+  "S2738008561",
+  previous_stats = mdpi_stats,
+  filename = "S2738008561_2"
+)
+save(mdpi_stats_2, file = "mdpi_stats_2.Rda")
 # How many paper were actually processed?
 download_statistics <- function(id, stats_df) {
   data_loc <- data_all %>%
@@ -160,8 +195,15 @@ write.csv(
   row.names = FALSE
 )
 
+# write.csv(
+#   download_statistics("S2738008561", mdpi_stats),
+#   file = "results/mdpi_download_statistics.csv",
+#   quote = FALSE,
+#   row.names = FALSE
+# )
+
 write.csv(
-  download_statistics("S2738008561", mdpi_stats),
+  download_statistics("S2738008561", mdpi_stats_2),
   file = "results/mdpi_download_statistics.csv",
   quote = FALSE,
   row.names = FALSE
@@ -221,7 +263,7 @@ write_excel_csv(
   "results/zeitschrift_fuer_paedagogik_links_clean.csv"
 )
 
-mdpi_links_clean <- mdpi_stats %>%
+mdpi_links_clean <- mdpi_stats_2 %>%
   filter(has_link) %>%
   mutate(
     all_links = clean_links(all_links)
@@ -254,7 +296,7 @@ print(ze_unique)
 zp_unique <- proportion_stats(zp_stats)
 print(zp_unique)
 
-mdpi_unique <- proportion_stats(mdpi_stats)
+mdpi_unique <- proportion_stats(mdpi_stats_2)
 print(mdpi_unique)
 
 stats_final <- function(stats) {
@@ -268,6 +310,8 @@ print(dssf)
 zesf <- stats_final(ze_unique)
 print(zesf)
 
+mdpisf <- stats_final(mdpi_unique)
+print(mdpisf)
 library(ggplot2)
 library(scales)
 
@@ -299,7 +343,7 @@ plot_stats <- function(stats_df, name) {
       sec.axis = sec_axis(
         trans = ~ . * scale_factor,
         name = "Anzahl (Paper mit Link)",
-        breaks = count_breaks
+        #breaks = count_breaks
       )
     ) +
 
@@ -335,7 +379,7 @@ plot_stats(
 )
 ggsave("results/zp.png")
 plot_stats(
-  mdpi_stats,
+  mdpi_stats_2,
   name = "Education Sciences"
 )
 ggsave("results/mdpi.png")

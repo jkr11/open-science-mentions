@@ -1,7 +1,7 @@
 library(tidyverse)
 library(httr2)
 
-setwd("experiment/fetch_data")
+setwd("../fetch_data")
 
 df <- read.csv("education_journals.csv", sep = ",")
 
@@ -12,7 +12,7 @@ get_oa_stats <- function(journal_id, since_year = NULL) {
   if (!is.null(since_year)) {
     filter_str <- paste0(filter_str, ",publication_year:>", since_year)
   }
-  filter_str <- paste0(filter_str, "type:article")
+  filter_str <- paste0(filter_str, ",type:article")
 
   tryCatch(
     {
@@ -20,7 +20,7 @@ get_oa_stats <- function(journal_id, since_year = NULL) {
         req_url_query(
           `group_by` = "open_access.is_oa",
           `filter` = filter_str,
-          `mailto` = "your_email@example.com"
+          `mailto` = "jeremias.rieser@gmail.com"
         ) %>%
         req_perform() %>%
         resp_body_json()
@@ -61,3 +61,66 @@ df <- df %>%
 
 print(df)
 write.csv(df, file = "education_journals_count.csv", row.names = FALSE)
+
+get_oa_stats_window <- function(journal_id, year_min = NULL, year_max = NULL) {
+  base_url <- "https://api.openalex.org/works"
+
+  filters <- c(
+    paste0("primary_location.source.id:", journal_id),
+    "type:article"
+  )
+
+  if (!is.null(year_min) && is.null(year_max)) {
+    filters <- c(filters, paste0("publication_year:>", year_min))
+  } else if (is.null(year_min) && !is.null(year_max)) {
+    filters <- c(filters, paste0("publication_year:<", year_max + 1))
+  }
+
+  filter_str <- paste(filters, collapse = ",")
+
+  tryCatch(
+    {
+      data <- request(base_url) %>%
+        req_url_query(
+          `group_by` = "open_access.is_oa",
+          `filter` = filter_str,
+          `mailto` = "jeremias.rieser@gmail.com"
+        ) %>%
+        req_perform() %>%
+        resp_body_json()
+
+      results <- data$group_by
+      noa_count <- keep(results, ~ .x$key == "0") %>% map_int("count") %>% sum()
+      oa_count <- keep(results, ~ .x$key == "1") %>% map_int("count") %>% sum()
+      total <- oa_count + noa_count
+
+      return(tibble(
+        oa_count = oa_count,
+        total_count = total,
+        prop = ifelse(total > 0, oa_count / total, 0)
+      ))
+    },
+    error = function(e) return(tibble(oa_count = 0, total_count = 0, prop = 0))
+  )
+}
+
+df_final <- df %>%
+  rowwise() %>%
+  mutate(
+    pre_2016 = list(get_oa_stats_window(Journal.ID, year_max = 2016)),
+    post_2016 = list(get_oa_stats_window(Journal.ID, year_min = 2016)),
+    pre_2019 = list(get_oa_stats_window(Journal.ID, year_max = 2019)),
+    post_2019 = list(get_oa_stats_window(Journal.ID, year_min = 2019))
+  ) %>%
+  unnest_wider(c(pre_2016, post_2016, pre_2019, post_2019), names_sep = "_")
+
+df_final <- df_final %>%
+  mutate(
+    increase_2016 = (post_2016_prop - pre_2016_prop) / pre_2016_prop,
+    increase_2019 = (post_2019_prop - pre_2019_prop) / pre_2019_prop
+  )
+
+
+print(df_final$increase_2019)
+
+write.csv(df_final, file = "education_journals_count.csv", row.names = FALSE)
