@@ -157,8 +157,8 @@ async def download_batch_by_journal_async(
 
         for url in urls:
           try:
-            url = handle_url(url)
-            final_path = await downloader.download(url)
+            # url = handle_url(url) TODO switch back
+            final_path = await downloader.download_browser(url)
             if final_path:
               status_to_write = "DONE"
               break
@@ -198,6 +198,79 @@ async def download_batch_by_journal_async(
     if "pbar" in locals():
       pbar.close()
     return False
+
+
+async def download_task(downloader : PDFDownloader, semaphore, row, pbar):
+  """A worker task that respects the concurrency limit."""
+  openalex_id, url_json = row
+  async with semaphore:
+    urls = json.loads(url_json).get("pdf_links", [])
+    urls = [u for u in urls if u is not None]
+
+    final_path = None
+    status_to_write = "FAILED"
+
+    for url in urls:
+      try:
+        # Use the existing browser instance in the downloader
+        final_path = await downloader.download_browser(url)
+        if final_path:
+          status_to_write = "DONE"
+          break
+      except Exception as e:
+        status_to_write = "TIMEOUT" if "timeout" in str(e).lower() else "FAILED"
+
+    pbar.update(1)
+    return (final_path, status_to_write, openalex_id)
+
+
+CONCURRENCY_LIMIT = 5
+
+
+async def download_batch_by_journal_async_par(
+  journal_id: str, batch_size=20, switch_time=30, allow_rotate=True, which="PENDING"
+) -> bool:
+  downloader = PDFDownloader(
+    DOWNLOAD_DIR_PDFS,
+    allow_rotate=allow_rotate,
+    switch_time=switch_time,
+    headless=False,
+  )
+
+  # 1. Fetch data
+  with sqlite3.connect(DB_PATH) as conn:
+    cursor = conn.cursor()
+    cursor.execute(
+      "SELECT openalex_id, oa_urls FROM works WHERE pdf_download_status = ? AND journal_id = ? LIMIT ?",
+      (which, journal_id.upper(), batch_size),
+    )
+    rows = cursor.fetchall()
+
+  if not rows:
+    return False
+
+  pbar = tqdm(total=len(rows), desc=f"Journal: {journal_id}", unit="pdf")
+  semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
+
+  # 2. Execute concurrently
+  async with downloader:
+    tasks = [download_task(downloader, semaphore, row, pbar) for row in rows]
+    results = await asyncio.gather(*tasks)
+
+  # 3. Batch Update Database
+  with sqlite3.connect(DB_PATH) as conn:
+    cursor = conn.cursor()
+    cursor.executemany(
+      """
+            UPDATE works
+            SET pdf_local_path = ?, pdf_download_status = ?
+            WHERE openalex_id = ?
+            """,
+      results,
+    )
+
+  pbar.close()
+  return True
 
 
 def download_batch(batch_size=20, switch_time=30, allow_rotate=True) -> bool:
@@ -431,20 +504,19 @@ PSYCH_JOURNALS = [
 async def main(journal_id):
   while True:
     succ = await download_batch_by_journal_async(
-      journal_id, 1000, 100, True, which="PENDING"
+      journal_id, 1000, 50, True, which="TIMEOUT"
     )
     if not succ:
       break
 
 
 if __name__ == "__main__":
-  N = 2
+  journal = ED_JOURNALS[1]
   # vpn.rotate_vpn_server()
-  # for work in get_journal_by_id([DE_JOURNALS[N]], 100, 2016):
+  # for work in get_journal_by_id([journal], 100, 2016, _cursor="IlsxNjgxOTQ4ODAwMDAwLCA5OS4wLCAxMywgJ2h0dHBzOi8vb3BlbmFsZXgub3JnL1c0MzY2Nzc1NjI0J10i"):
   #   insert_work_metadata_sql(work)
   # transform_url_by_journal(DE_JOURNALS[N])
 
-  # asyncio.run(main(DE_JOURNALS[N]))
-#
+  asyncio.run(main(journal))
 
-  while grobid_batch(DE_JOURNALS[N], 40, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS): ...
+  # while grobid_batch(journal, 40, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS): ...

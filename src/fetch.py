@@ -14,7 +14,7 @@ INDEX_DB = os.path.join(DB_DIR, "openalex_jsonl")
 
 
 def get_journal_by_id(
-  journal_ids: List[str], per_page: int, min_year: int, pdf:bool=True
+  journal_ids: List[str], per_page: int, min_year: int, pdf:bool=True, _cursor=None
 ) -> Generator[Any, None, None]:
   """
   Docstring for get_journal_by_id
@@ -30,7 +30,7 @@ def get_journal_by_id(
   :return: 
   :rtype: Generator[Any, None, None]
   """
-  cursor = "*"
+  cursor = "*" if not _cursor else _cursor
   if isinstance(journal_ids, str):
     journal_ids = [journal_ids]
   while True:
@@ -43,6 +43,7 @@ def get_journal_by_id(
         ",open_access.is_oa:true"
         f",has_content.pdf:{pdf}"
         f",publication_year:>{min_year}"
+        ",type:article"
       ),
       "sort": "publication_year:desc",
       "mailto": f"{EMAIL_ADRESS}",
@@ -54,6 +55,7 @@ def get_journal_by_id(
       payload = r.json()
     except requests.exceptions.RequestException as e:
       print(f"An API request error occured: {e}")
+      print(f"With cursor: {cursor}")
       break
 
     results = payload.get("results", [])

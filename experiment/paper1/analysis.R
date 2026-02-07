@@ -10,6 +10,7 @@ setwd("/home/jkr/work/open-science/open-science/experiment/paper1")
 # "S4210217710" # Deutsche Schule (Waxmann) 1
 # "S40639335" # Zeitschrift für Erziehungswissenschaft (Springer)
 # "S63113783" # Zeitschrift für Paedagogik (Pedocs) 1
+# "S2738008561" Education Sciences MDPI
 
 # Run this everytime the db changes
 conn <- dbConnect(RSQLite::SQLite(), "../../db/index.db")
@@ -70,9 +71,9 @@ get_journal_stats <- function(
   )
 
   # uncomment for new data (!SLOW!)
-  #papers <- metacheck::read(index$tei_local_path)
-  #save(papers, file = str_glue("{target_journal_id}.Rda"))
-  load(str_glue("{target_journal_id}.Rda"))
+  papers <- metacheck::read(index$tei_local_path)
+  save(papers, file = str_glue("{target_journal_id}.Rda"))
+  # load(str_glue("{target_journal_id}.Rda"))
   osf_links <- metacheck::osf_links(papers)
   git_links <- metacheck::github_links(papers)
   stats <- paper_2_df(papers, index)
@@ -118,6 +119,8 @@ save(zp_stats, file = "zp_stats.Rda")
 # load("ze_stats.Rda")
 # load("ds_stats.Rda"
 
+mdpi_stats <- get_journal_stats("S2738008561")
+save(mdpi_stats, file = "mdpi_stats.Rda")
 # How many paper were actually processed?
 download_statistics <- function(id, stats_df) {
   data_loc <- data_all %>%
@@ -153,6 +156,13 @@ write.csv(
 write.csv(
   download_statistics("S63113783", zp_stats),
   file = "results/zp_download_statistics.csv",
+  quote = FALSE,
+  row.names = FALSE
+)
+
+write.csv(
+  download_statistics("S2738008561", mdpi_stats),
+  file = "results/mdpi_download_statistics.csv",
   quote = FALSE,
   row.names = FALSE
 )
@@ -211,6 +221,17 @@ write_excel_csv(
   "results/zeitschrift_fuer_paedagogik_links_clean.csv"
 )
 
+mdpi_links_clean <- mdpi_stats %>%
+  filter(has_link) %>%
+  mutate(
+    all_links = clean_links(all_links)
+  ) %>%
+  select(doi, all_links)
+write_excel_csv(
+  mdpi_links_clean,
+  "results/mdpi_links_clean.csv"
+)
+
 proportion_stats <- function(stats_df) {
   unique_stats <- stats_df %>%
     filter(publication_year != 2026) %>%
@@ -232,6 +253,9 @@ print(ze_unique)
 
 zp_unique <- proportion_stats(zp_stats)
 print(zp_unique)
+
+mdpi_unique <- proportion_stats(mdpi_stats)
+print(mdpi_unique)
 
 stats_final <- function(stats) {
   s1 = sum(stats$unique_linked_papers)
@@ -310,3 +334,8 @@ plot_stats(
   name = "Zeitschrift für Pädagogik (Beltz/Pedocs)"
 )
 ggsave("results/zp.png")
+plot_stats(
+  mdpi_stats,
+  name = "Education Sciences"
+)
+ggsave("results/mdpi.png")

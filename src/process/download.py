@@ -15,6 +15,11 @@ from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 from vpn import rotate_vpn_server
 
+G = "\033[92m"
+RESET = "\033[0m"
+R = "\033[91m"
+Y = "\033[93m"
+
 
 class PDFDownloader:
   def __init__(
@@ -52,8 +57,8 @@ class PDFDownloader:
 
     return
 
-  def log(self, msg: str) -> None:
-    print(f"[{os.getpid()}] {msg}")
+  def log(self, msg: str, COL=RESET) -> None:
+    print(f"[{os.getpid()}] {COL}{msg}{RESET}")
 
   async def _quit_browser(self):
     if self.browser:
@@ -95,7 +100,12 @@ class PDFDownloader:
       {"behavior": "allow", "downloadPath": self.tmpdir},
     )
 
-    await self.browser.switch_to.new_window("tab", url="chrome://settings/content/pdfDocuments", activate=True, background=True)
+    await self.browser.switch_to.new_window(
+      "tab",
+      url="chrome://settings/content/pdfDocuments",
+      activate=True,
+      background=True,
+    )
     await asyncio.sleep(10)
 
     if geodata:
@@ -108,7 +118,7 @@ class PDFDownloader:
         await self.browser.execute_cdp_cmd(
           "Emulation.setTimezoneOverride", {"timezoneId": geodata["timezone"]}
         )
-    #self.rotate(reinit=False)
+    # self.rotate(reinit=False)
     self.time_since_last_init = time.time()
 
   async def _get_current_ip_geo(self) -> Dict:
@@ -174,9 +184,9 @@ class PDFDownloader:
   def _finalize_download(self, tmppath: str, url: str) -> str | None:
     final_name = self._hash(url)
     final_path = os.path.join(self.download_dir, final_name)
-    #try:
+    # try:
     #  PdfReader(tmppath)
-    #except PdfReadError:
+    # except PdfReadError:
     #  print("Invalid pdf, deleting")
     #  os.remove(tmppath)
     #  return None
@@ -218,40 +228,49 @@ class PDFDownloader:
     ctime = time.time() - self.time_since_last_init
     print(f"Time: {ctime}/{self.switch_time}")
     if ctime > self.switch_time:
-      await self.rotate(reinit=False) 
+      await self.rotate(reinit=False)
     print(f"Handling URL: {url}")
     if not self.browser:
       self.log("Reiniting browser")
       await self._init_browser()
-    before_files = set()
-    if self.tmpdir:
-      before_files = set(
-        f for f in os.listdir(self.tmpdir) if f.lower().endswith(".pdf")
-      )
+    assert self.browser is not None
+    tab = await self.browser.new_window(type_hint="tab", activate=False)
+
     try:
+      before_files = set()
+      if self.tmpdir:
+        before_files = set(
+          f for f in os.listdir(self.tmpdir) if f.lower().endswith(".pdf")
+        )
+      # await tab.get(url, wait_load=True)
       await self.browser.get(url)
       if not await self._wait_for_page_load(timeout=5):
-        self.log(f"[x] Page load timeout for {url}")
+        self.log(f"[x] Page load timeout for {url}", R)
         return None
 
-      downloaded_file = await self._wait_for_download(before_files)
+      downloaded_file = await self._wait_for_download(before_files, timeout=10)
 
       if downloaded_file:
-        self.log(f"[*] Success: {downloaded_file}")
+        self.log(f"[*] Success: {downloaded_file}", G)
         tmppath = os.path.join(self.tmpdir, downloaded_file)
         return self._finalize_download(tmppath, url)
       else:
-        self.log("[x] Failure: Timeout.")
+        self.log("[x] Failure: Timeout.", Y)
         raise Exception("[x] Failure: Timeout.")
     except Exception as e:
-      self.log(f"Exception in download_browser: {e}")
+      self.log(f"Exception in download_browser: {e}", R)
       raise Exception(e)
       return None
+    finally:
+      try:
+        await tab.close()
+      except:
+        pass
 
   async def download(self, url: str) -> Optional[str]:
     print(f"CTIME: {time.time() - self.time_since_last_init}\n{self.switch_time}")
     if time.time() - self.time_since_last_init > self.switch_time:
-      await self.rotate()
+      await self.rotate(reinit=False)
 
     filename = self._hash(url)
     result = await self.download_requests(url, filename)

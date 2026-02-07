@@ -3,7 +3,7 @@ import random
 import time
 
 
-SERVER_POOL = [("us", "nyc"), ("de", "fra"), ("se", "sto"), ("nl", "ams")]
+SERVER_POOL = [("us", "nyc"), ("de", "fra"), ("se", "sto"), ("nl", "ams"), ("de", "dus"), ("ch", "zrh"), ("gb", "lon"), ("fr", "par")]
 # only ("de", "dus") works for sage, so reserve it for that.
 # TODO: add more vpn options like nord
 
