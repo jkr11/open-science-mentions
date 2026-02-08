@@ -2,12 +2,12 @@ library(tidyverse)
 library(openalexR)
 library(jsonlite)
 library(RSQLite)
-setwd("experiment")
+setwd("experiment/fetch_data/")
 
 files <- c("pedocs-auswahl_1.csv", "pedocs-auswahl_2.csv")
 pedocs <- map_df(files, ~ read_delim(.x, delim = ";", show_col_types = FALSE))
 write.csv(pedocs, file = "pedocs_auswahl.csv", )
-
+# TODO: publication year in pedocs is not really appropriate, use "Erstellungsjahr".
 
 pedocs_clean <- pedocs %>%
   mutate(
@@ -21,7 +21,7 @@ pedocs_clean <- pedocs %>%
   ) %>%
   rename(
     oa_urls = `Link pdf-Dateien`,
-    publication_year = Publikationsdatum
+    publication_year = Erstellungsjahr
   ) %>%
   mutate(
     oa_urls = map_chr(

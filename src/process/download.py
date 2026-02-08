@@ -224,6 +224,15 @@ class PDFDownloader:
       await asyncio.sleep(0.2)
     return False
 
+  async def is_institution_login_available(self) -> bool:
+    # Springer only for now
+    try:
+        await self.browser.find_element("css selector", "[data-test='access-via-institution']")
+        return True
+    except Exception as _:
+        return False
+
+
   async def download_browser(self, url: str) -> str | None:
     ctime = time.time() - self.time_since_last_init
     print(f"Time: {ctime}/{self.switch_time}")
@@ -244,10 +253,18 @@ class PDFDownloader:
         )
       # await tab.get(url, wait_load=True)
       await self.browser.get(url)
+
+
+      # if await self.browser.current_url != url:
+      #   # Redirect
+      #   print(f"Redirect to: {await self.browser.current_url}")
+      #   if await self.is_institution_login_available():
+      #     raise Exception("Institutional login")
       if not await self._wait_for_page_load(timeout=5):
         self.log(f"[x] Page load timeout for {url}", R)
         return None
-
+        raise Exception("Timeoout when loading page")
+        
       downloaded_file = await self._wait_for_download(before_files, timeout=10)
 
       if downloaded_file:
@@ -260,7 +277,6 @@ class PDFDownloader:
     except Exception as e:
       self.log(f"Exception in download_browser: {e}", R)
       raise Exception(e)
-      return None
     finally:
       try:
         await tab.close()

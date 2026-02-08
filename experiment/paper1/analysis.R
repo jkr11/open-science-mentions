@@ -3,6 +3,7 @@ library(dplyr)
 library(metacheck)
 library(tidyverse)
 library(stringr)
+library(scales)
 
 # replace with own working directory (this is intended to be used from top level)
 setwd("/home/jkr/work/open-science/open-science/experiment/paper1")
@@ -93,9 +94,9 @@ get_journal_stats <- function(
   )
 
   # uncomment for new data (!SLOW!)
-  #papers <- metacheck::read(index$tei_local_path)
-  #save(papers, file = save_name)
-  load(save_name)
+  papers <- metacheck::read(index$tei_local_path)
+  save(papers, file = save_name)
+  # load(save_name)
   osf_links <- metacheck::osf_links(papers)
   git_links <- metacheck::github_links(papers)
   stats <- paper_2_df(papers, index)
@@ -134,28 +135,42 @@ get_journal_stats <- function(
   return(stats)
 }
 
-ds_stats <- get_journal_stats("S4210217710") # Deutsche Schule (Waxmann) 1
-ze_stats <- get_journal_stats("S40639335") # Zeitschrift für Erziehungswissenschaft (Springer) 35 # 464
-
-zp_stats <- get_journal_stats("S63113783") # Zeitschrift für Paedagogik (Pedocs) 1
-save(ds_stats, file = "ds_stats.Rda")
-save(ze_stats, file = "ze_stats.Rda")
-save(zp_stats, file = "zp_stats.Rda")
-# load("zp_stats.Rda")
-# load("ze_stats.Rda")
-# load("ds_stats.Rda"
+# ds_stats <- get_journal_stats("S4210217710") # Deutsche Schule (Waxmann) 1
+# ze_stats <- get_journal_stats("S40639335") # Zeitschrift für Erziehungswissenschaft (Springer) 35 # 464
+#
+# zp_stats <- get_journal_stats("S63113783") # Zeitschrift für Paedagogik (Pedocs) 1
+# save(ds_stats, file = "ds_stats.Rda")
+# save(ze_stats, file = "ze_stats.Rda")
+# save(zp_stats, file = "zp_stats.Rda")
+load("zp_stats.Rda")
+load("ze_stats.Rda")
+load("ds_stats.Rda")
 
 #mdpi_stats <- get_journal_stats("S2738008561")
 #save(mdpi_stats, file = "mdpi_stats.Rda")
 load(file = "mdpi_stats.Rda")
 
 
-mdpi_stats_2 <- get_journal_stats(
-  "S2738008561",
-  previous_stats = mdpi_stats,
-  filename = "S2738008561_2"
-)
-save(mdpi_stats_2, file = "mdpi_stats_2.Rda")
+# mdpi_stats_2 <- get_journal_stats(
+#   "S2738008561",
+#   previous_stats = mdpi_stats,
+#   filename = "S2738008561_2"
+# )
+# save(mdpi_stats_2, file = "mdpi_stats_2.Rda")
+load(file = "mdpi_stats_2.Rda")
+
+zg_stats <- get_journal_stats("S4210233694")
+save(zg_stats, file = "zg_stats.Rda")
+
+epr_stats <- get_journal_stats("S187318745") # Educational Psychology Review
+save(epr_stats, file = "epr_stats.Rda")
+
+ethe_stats <- get_journal_stats("S4210201537")
+save(ethe_stats, file = "ethe_stats.Rda")
+
+etre_stats <- get_journal_stats("S114840262")
+save(etre_stats, file = "etre_stats.Rda")
+
 # How many paper were actually processed?
 download_statistics <- function(id, stats_df) {
   data_loc <- data_all %>%
@@ -274,6 +289,31 @@ write_excel_csv(
   "results/mdpi_links_clean.csv"
 )
 
+epr_links_clean <- epr_stats %>%
+  filter(has_link) %>%
+  mutate(
+    all_links = clean_links(all_links)
+  ) %>%
+  select(doi, all_links)
+write_excel_csv(
+  epr_links_clean,
+  "results/epr_links_clean.csv"
+)
+
+
+write_clean_links <- function(stats, name) {
+  clean <- stats %>%
+    mutate(
+      all_links = clean_links(all_links)
+    ) %>%
+    select(doi, all_links)
+  write_excel_csv(
+    epr_links_clean,
+    str_glue("results/{name}.csv")
+  )
+}
+write_clean_links(ethe_stats, "ethe_links_clean")
+
 proportion_stats <- function(stats_df) {
   unique_stats <- stats_df %>%
     filter(publication_year != 2026) %>%
@@ -299,6 +339,14 @@ print(zp_unique)
 mdpi_unique <- proportion_stats(mdpi_stats_2)
 print(mdpi_unique)
 
+epr_unique <- proportion_stats(epr_stats)
+print(epr_unique)
+
+ethe_unique <- proportion_stats(ethe_stats)
+print(ethe_unique)
+
+etre_unique <- proportion_stats(etre_stats)
+print(etre_unique)
 stats_final <- function(stats) {
   s1 = sum(stats$unique_linked_papers)
   s2 = sum(stats$total_papers)
@@ -383,3 +431,51 @@ plot_stats(
   name = "Education Sciences"
 )
 ggsave("results/mdpi.png")
+plot_stats(epr_stats, name = "Educational Psychology Review")
+ggsave("results/epr.png")
+
+plot_stats(ethe_stats, name = "Education Technology in higher Education")
+ggsave("results/ethe.png")
+
+plot_stats(etre_stats, name = "Education Technology Research and Developement")
+ggsave("results/etre.png")
+
+combined_df <- bind_rows(
+  proportion_stats(ze_stats) %>%
+    mutate(Journal = "Zeitschrift für Erziehungswissenschaften"),
+  proportion_stats(ds_stats) %>% mutate(Journal = "Deutsche Schule"),
+  proportion_stats(zp_stats) %>% mutate(Journal = "Zeitschrift für Pädagogik"),
+  proportion_stats(mdpi_stats_2) %>% mutate(Journal = "Education Sciences"),
+  proportion_stats(epr_stats) %>%
+    mutate(Journal = "Educational Psychology Review"),
+  proportion_stats(ethe_stats) %>%
+    mutate(Journal = "Educational Technology in higher Education"),
+  proportion_stats(etre_stats) %>%
+    mutate(Journal = "Education Technology Research and Developement")
+)
+
+ggplot(
+  combined_df,
+  aes(x = publication_year, y = proportion_linked, color = Journal)
+) +
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+  scale_y_continuous(
+    name = "Anteil (Prozent)",
+    labels = label_percent(accuracy = 1),
+    limits = c(0, max(combined_df$proportion_linked, na.rm = TRUE) * 1.1)
+  ) +
+  scale_x_continuous(breaks = unique(combined_df$publication_year)) +
+  labs(
+    title = "Vergleich: Anteil der Artikel mit Repositoriums-Links",
+    subtitle = "2017-2025",
+    x = "Erscheinungsjahr",
+    color = "Journal / Quelle"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+
+ggsave("results/combined_stats.png", width = 10, height = 6)
