@@ -451,8 +451,13 @@ combined_df <- bind_rows(
   proportion_stats(ethe_stats) %>%
     mutate(Journal = "Educational Technology in higher Education"),
   proportion_stats(etre_stats) %>%
-    mutate(Journal = "Education Technology Research and Developement")
+    mutate(Journal = "Educational Technology Research and Development")
 )
+
+combined_df <- combined_df %>%
+  group_by(Journal) %>%
+  mutate(FigureName = str_glue("{Journal} (N = {sum(total_papers)})")) %>%
+  ungroup()
 
 ggplot(
   combined_df,
@@ -479,3 +484,40 @@ ggplot(
   )
 
 ggsave("results/combined_stats.png", width = 10, height = 6)
+
+ggplot(
+  combined_df,
+  aes(
+    x = publication_year,
+    y = proportion_linked,
+    color = str_wrap(FigureName, 20),
+  )
+) +
+  geom_line(linewidth = 1) +
+  geom_point(aes(size = unique_linked_papers), shape = 15, alpha = 0.7) +
+  scale_size_continuous(
+    name = "Anzahl verlinkter Paper",
+    range = c(1, 8)
+  ) +
+  scale_y_continuous(
+    name = "Anteil (Prozent)",
+    labels = label_percent(accuracy = 1),
+    limits = c(0, max(combined_df$proportion_linked, na.rm = TRUE) * 1.1)
+  ) +
+  scale_x_continuous(breaks = unique(combined_df$publication_year)) +
+  labs(
+    title = "Vergleich: Anteil der Artikel mit Repositoriums-Links",
+    subtitle = "2017-2025",
+    x = "Erscheinungsjahr",
+    color = "Journal"
+  ) +
+  scale_fill_brewer(palette = "Pastel2") +
+  theme(
+    legend.background = element_rect(fill = "white", colour = "black"),
+    legend.position = c(0.125, 0.675),
+    legend.box = "vertical",
+    legend.direction = "vertical",
+    panel.grid.minor = element_blank(),
+  )
+ggsave("results/uebersicht.png", width = 10, height = 8)
+# ggsave("results/combined_by_size.png", width = 10, height = 6)
