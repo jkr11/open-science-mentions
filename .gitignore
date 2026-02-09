@@ -16,6 +16,7 @@ testdata/
 *downloads/
 test_db/
 paperData.Rda
+!experiment/paper1/fe_stats.Rda
 *.Rda
 *.RData
 *.Rhistory

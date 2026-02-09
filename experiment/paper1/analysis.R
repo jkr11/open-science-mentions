@@ -6,7 +6,7 @@ library(stringr)
 library(scales)
 
 # replace with own working directory (this is intended to be used from top level)
-setwd("/home/jkr/work/open-science/open-science/experiment/paper1")
+setwd("/home/jere/projects/open-science-mentions/experiment/paper1")
 
 # "S4210217710" # Deutsche Schule (Waxmann) 1
 # "S40639335" # Zeitschrift für Erziehungswissenschaft (Springer)
@@ -18,6 +18,10 @@ conn <- dbConnect(RSQLite::SQLite(), "../../db/index.db")
 query <- "SELECT * FROM works;"
 data_all <- dbGetQuery(conn, query)
 dbDisconnect(conn)
+
+conn_alt <- dbConnect(RSQLite::SQLite(), "../../test_db/index.db")
+data_all <- dbGetQuery(conn_alt, query)
+dbDisconnect(conn_alt)
 
 # manually fix pedocs dates
 # data_all <- data_all %>%
@@ -94,9 +98,9 @@ get_journal_stats <- function(
   )
 
   # uncomment for new data (!SLOW!)
-  papers <- metacheck::read(index$tei_local_path)
-  save(papers, file = save_name)
-  # load(save_name)
+  # papers <- metacheck::read(index$tei_local_path)
+  # save(papers, file = save_name)
+  load(save_name)
   osf_links <- metacheck::osf_links(papers)
   git_links <- metacheck::github_links(papers)
   stats <- paper_2_df(papers, index)
@@ -171,6 +175,8 @@ save(ethe_stats, file = "ethe_stats.Rda")
 etre_stats <- get_journal_stats("S114840262")
 save(etre_stats, file = "etre_stats.Rda")
 
+fe_stats <- get_journal_stats("S2596526815")
+save(fe_stats, file = "fe_stats.Rda")
 # How many paper were actually processed?
 download_statistics <- function(id, stats_df) {
   data_loc <- data_all %>%
@@ -308,11 +314,13 @@ write_clean_links <- function(stats, name) {
     ) %>%
     select(doi, all_links)
   write_excel_csv(
-    epr_links_clean,
+    clean,
     str_glue("results/{name}.csv")
   )
 }
 write_clean_links(ethe_stats, "ethe_links_clean")
+
+write_clean_links(fe_stats, "fe_links_clean")
 
 proportion_stats <- function(stats_df) {
   unique_stats <- stats_df %>%
@@ -347,6 +355,10 @@ print(ethe_unique)
 
 etre_unique <- proportion_stats(etre_stats)
 print(etre_unique)
+
+fe_unique <- proportion_stats(fe_stats)
+print(fe_unique)
+
 stats_final <- function(stats) {
   s1 = sum(stats$unique_linked_papers)
   s2 = sum(stats$total_papers)
@@ -440,6 +452,9 @@ ggsave("results/ethe.png")
 plot_stats(etre_stats, name = "Education Technology Research and Developement")
 ggsave("results/etre.png")
 
+plot_stats(fe_stats, name = "Frontiers in Education")
+ggsave("results/fe.png")
+
 combined_df <- bind_rows(
   proportion_stats(ze_stats) %>%
     mutate(Journal = "Zeitschrift für Erziehungswissenschaften"),
@@ -451,7 +466,9 @@ combined_df <- bind_rows(
   proportion_stats(ethe_stats) %>%
     mutate(Journal = "Educational Technology in higher Education"),
   proportion_stats(etre_stats) %>%
-    mutate(Journal = "Educational Technology Research and Development")
+    mutate(Journal = "Educational Technology Research and Development"),
+  proportion_stats(fe_stats) %>% 
+    mutate(Journal = "Frontiers in Education")
 )
 
 combined_df <- combined_df %>%
