@@ -163,20 +163,26 @@ load(file = "mdpi_stats.Rda")
 # save(mdpi_stats_2, file = "mdpi_stats_2.Rda")
 load(file = "mdpi_stats_2.Rda")
 
-zg_stats <- get_journal_stats("S4210233694")
-save(zg_stats, file = "zg_stats.Rda")
+#zg_stats <- get_journal_stats("S4210233694")
+#save(zg_stats, file = "zg_stats.Rda")
+load("zg_stats.Rda")
+#epr_stats <- get_journal_stats("S187318745") # Educational Psychology Review
+#save(epr_stats, file = "epr_stats.Rda")
+load("epr_stats.Rda")
+# ethe_stats <- get_journal_stats("S4210201537")
+# save(ethe_stats, file = "ethe_stats.Rda")
 
-epr_stats <- get_journal_stats("S187318745") # Educational Psychology Review
-save(epr_stats, file = "epr_stats.Rda")
+load("ethe_stats.Rda")
 
-ethe_stats <- get_journal_stats("S4210201537")
-save(ethe_stats, file = "ethe_stats.Rda")
+# etre_stats <- get_journal_stats("S114840262")
+# save(etre_stats, file = "etre_stats.Rda")
+load("etre_stats.Rda")
 
-etre_stats <- get_journal_stats("S114840262")
-save(etre_stats, file = "etre_stats.Rda")
 
 fe_stats <- get_journal_stats("S2596526815")
 save(fe_stats, file = "fe_stats.Rda")
+
+load("fe_stats.Rda")
 # How many paper were actually processed?
 download_statistics <- function(id, stats_df) {
   data_loc <- data_all %>%
@@ -338,6 +344,7 @@ proportion_stats <- function(stats_df) {
 ds_unique <- proportion_stats(ds_stats)
 print(ds_unique)
 
+
 ze_unique <- proportion_stats(ze_stats)
 print(ze_unique)
 
@@ -467,7 +474,7 @@ combined_df <- bind_rows(
     mutate(Journal = "Educational Technology in higher Education"),
   proportion_stats(etre_stats) %>%
     mutate(Journal = "Educational Technology Research and Development"),
-  proportion_stats(fe_stats) %>% 
+  proportion_stats(fe_stats) %>%
     mutate(Journal = "Frontiers in Education")
 )
 
@@ -538,3 +545,45 @@ ggplot(
   )
 ggsave("results/uebersicht.png", width = 10, height = 8)
 # ggsave("results/combined_by_size.png", width = 10, height = 6)
+
+ggplot(
+  combined_df,
+  aes(
+    x = publication_year,
+    y = unique_linked_papers,
+    fill = str_wrap(FigureName, 20)
+  )
+) +
+  geom_col(color = "white", linewidth = 0.2) +
+  scale_y_continuous(
+    name = "Anzahl verlinkter Paper",
+    limits = c(
+      0,
+      max(
+        aggregate(
+          unique_linked_papers ~ publication_year,
+          combined_df,
+          sum
+        )$unique_linked_papers
+      ) *
+        1.1
+    )
+  ) +
+  scale_x_continuous(breaks = unique(combined_df$publication_year)) +
+  labs(
+    title = "Vergleich: Anzahl der Artikel mit Repositoriums-Links",
+    subtitle = "2017-2025",
+    x = "Erscheinungsjahr",
+    fill = "Journal"
+  ) +
+  scale_fill_brewer(palette = "Pastel2") +
+  theme_minimal() +
+  theme(
+    legend.background = element_rect(fill = "white", colour = "black"),
+    legend.position = c(0.125, 0.675),
+    legend.box = "vertical",
+    legend.direction = "vertical",
+    panel.grid.minor = element_blank()
+  )
+
+ggsave("results/uebersicht_counts.png", width = 10, height = 8)
