@@ -2,11 +2,12 @@ library(tidyverse)
 library(openalexR)
 library(jsonlite)
 library(RSQLite)
-setwd("experiment/fetch_data/")
+setwd("../fetch_data/")
 
-files <- c("pedocs-auswahl_1.csv", "pedocs-auswahl_2.csv")
+# files <- c("pedocs-auswahl_1.csv", "pedocs-auswahl_2.csv")
+files = c("../fetch_data/pedocs-auswahl_empir.csv")
 pedocs <- map_df(files, ~ read_delim(.x, delim = ";", show_col_types = FALSE))
-write.csv(pedocs, file = "pedocs_auswahl.csv", )
+# write.csv(pedocs, file = "pedocs_auswahl.csv", )
 # TODO: publication year in pedocs is not really appropriate, use "Erstellungsjahr".
 
 pedocs_clean <- pedocs %>%
@@ -37,8 +38,36 @@ id_map <- oa_fetch(
 ) %>%
   select(doi, id)
 
-pedocs_final <- pedocs_clean %>%
-  left_join(id_map, by = "doi") %>%
+empir_clean <- pedocs %>%
+  mutate(
+    doi = str_glue("https://doi.org{DOI}"),
+    journal_id = "s4306509262",
+    journal_name = "Empirische Sonderpädagogik",
+    pdf_download_status = "PENDING",
+    pdf_local_path = NA_character_,
+    tei_process_status = "PENDING",
+    tei_local_path = NA_character_
+  ) %>%
+  rename(
+    oa_urls = `Link pdf-Dateien`,
+    publication_year = Erstellungsjahr
+  ) %>%
+  mutate(
+    oa_urls = map_chr(
+      oa_urls,
+      ~ toJSON(list(pdf_links = .x), auto_unbox = FALSE)
+    )
+  )
+
+id_map_empir <- oa_fetch(
+  entity = "works",
+  doi = empir_clean$DOI,
+  verbose = FALSE
+) %>%
+  select(doi, id)
+
+pedocs_final <- empir_clean %>%
+  left_join(id_map_empir, by = "doi") %>%
   mutate(
     openalex_id = if_else(!is.na(id), id, paste("extern", `Source-Opus`))
   ) %>%
@@ -55,19 +84,18 @@ pedocs_final <- pedocs_clean %>%
     tei_local_path #
   )
 
-#update_data <- pedocs_final %>%
-#  select(openalex_id, publication_year)
+update_data <- pedocs_final %>%
+  select(openalex_id, publication_year)
 
-pedocs_final <- pedocs_final %>%
-  mutate(
-    publication_year = format(
-      as.Date(publication_year, format = "%d.%m.%Y"),
-      "%Y"
-    )
-  )
+# pedocs_final <- pedocs_final %>%
+#   mutate(
+#     publication_year = format(
+#       as.Date(publication_year, format = "%d.%m.%Y"),
+#       "%Y"
+#     )
+#   )
 
 conn_pd <- dbConnect(RSQLite::SQLite(), "../../db/index.db")
-#
 # dbWriteTable(
 #   conn_pd,
 #   "temp_year_update",
@@ -75,7 +103,6 @@ conn_pd <- dbConnect(RSQLite::SQLite(), "../../db/index.db")
 #   overwrite = TRUE,
 #   temporary = TRUE
 # )
-#
 # dbExecute(
 #   conn_pd,
 #   "

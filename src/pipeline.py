@@ -494,6 +494,7 @@ DE_JOURNALS = [
   "S4210217710",  # Deutsche Schule (Waxmann)
   "S63113783",  # Zeitschrift für Pädagogik (Pedocs)
   "s4210233694", # Zeitschrift für Grundschulforschung
+  "s4306509262", # Empirische Sonderpädagogik
 ]
 
 PSYCH_JOURNALS = [
@@ -505,19 +506,19 @@ PSYCH_JOURNALS = [
 async def main(journal_id):
   while True:
     succ = await download_batch_by_journal_async(
-      journal_id, 1000, 50, True, which="TIMEOUT"
+      journal_id, 1000, 50, True, which="PENDING"
     )
     if not succ:
       break
 
 # _cursor="IlsxNjgxOTQ4ODAwMDAwLCA5OS4wLCAxMywgJ2h0dHBzOi8vb3BlbmFsZXgub3JnL1c0MzY2Nzc1NjI0J10i"
 if __name__ == "__main__":
-  journal = "S114840262"
+  journal = "S4306509262"
   # vpn.rotate_vpn_server()
   # for work in get_journal_by_id([journal], 100, 2016):
   #    insert_work_metadata_sql(work)
   # transform_url_by_journal(DE_JOURNALS[N])  
-  asyncio.run(main(journal))
+  # asyncio.run(main(journal))
 
-  # while grobid_batch(journal, 40, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS): ...
+  while grobid_batch(journal, 40, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS): ...
 

@@ -7,11 +7,12 @@ library(scales)
 
 # replace with own working directory (this is intended to be used from top level)
 setwd("/home/jere/projects/open-science-mentions/experiment/paper1")
-
+setwd("../paper1")
 # "S4210217710" # Deutsche Schule (Waxmann) 1
 # "S40639335" # Zeitschrift für Erziehungswissenschaft (Springer)
 # "S63113783" # Zeitschrift für Paedagogik (Pedocs) 1
 # "S2738008561" Education Sciences MDPI
+# "S4306509262", # Empirische Sonderpädagogik
 
 # Run this everytime the db changes
 conn <- dbConnect(RSQLite::SQLite(), "../../db/index.db")
@@ -98,9 +99,9 @@ get_journal_stats <- function(
   )
 
   # uncomment for new data (!SLOW!)
-  # papers <- metacheck::read(index$tei_local_path)
-  # save(papers, file = save_name)
-  load(save_name)
+  papers <- metacheck::read(index$tei_local_path)
+  save(papers, file = save_name)
+  # load(save_name)
   osf_links <- metacheck::osf_links(papers)
   git_links <- metacheck::github_links(papers)
   stats <- paper_2_df(papers, index)
@@ -179,10 +180,15 @@ load("ethe_stats.Rda")
 load("etre_stats.Rda")
 
 
-fe_stats <- get_journal_stats("S2596526815")
-save(fe_stats, file = "fe_stats.Rda")
+# fe_stats <- get_journal_stats("S2596526815")
+# save(fe_stats, file = "fe_stats.Rda")
 
 load("fe_stats.Rda")
+
+# esp_stats <- get_journal_stats("S4306509262")
+# save(esp_stats, file = "esp_stats.Rda")
+
+load("esp_stats.Rda")
 # How many paper were actually processed?
 download_statistics <- function(id, stats_df) {
   data_loc <- data_all %>%
@@ -328,6 +334,132 @@ write_clean_links(ethe_stats, "ethe_links_clean")
 
 write_clean_links(fe_stats, "fe_links_clean")
 
+write_clean_links(esp_stats, "esp_links_clean")
+
+library(osfr)
+
+get_osf_files_recursive <- function(entity) {
+  current_level <- osf_ls_files(entity)
+
+  if (nrow(current_level) == 0) {
+    return(NULL)
+  }
+
+  files <- osf_ls_files(entity, type = "file")
+  folders <- osf_ls_files(entity, type = "folder")
+
+  if (nrow(folders) > 0) {
+    sub_files <- map_df(
+      folders$id,
+      ~ {
+        sub_entity <- osf_retrieve_file(.x)
+        get_osf_files_recursive(sub_entity)
+      }
+    )
+    files <- bind_rows(files, sub_files)
+  }
+
+  return(files)
+}
+
+probe_osf_files <- function(url) {
+  # Force URL to be a single string and remove whitespace
+  url <- as.character(url[1])
+  url <- gsub("\\s+", "", as.character(url[1]))
+  guid <- str_extract(url, "(?<=osf.io/)[a-z0-9]{5}")
+
+  if (is.na(guid)) {
+    message(paste("No GUID found in:", url))
+    return(NULL)
+  }
+
+  tryCatch(
+    {
+      entity <- osf_retrieve_node(guid)
+      files_df <- get_osf_files_recursive(entity)
+
+      if (nrow(files_df) == 0) {
+        return(NULL)
+      }
+
+      files_df %>%
+        mutate(
+          extension = tools::file_ext(name),
+        ) %>%
+        select(id, extension, name)
+    },
+    error = function(e) {
+      message(paste("OSF Error for GUID", guid, ":", e$message))
+      return(NULL)
+    }
+  )
+}
+
+view_file_data <- function(stats) {
+  files <- stats %>%
+    mutate(all_links = clean_links(all_links)) %>%
+    select(doi, all_links)
+
+  files$file_inventory <- map(
+    files$all_links,
+    ~ map_df(.x, probe_osf_files)
+  )
+
+  return(files)
+}
+
+classify_inventory <- function(inventory_df) {
+  if (is.null(inventory_df) || length(inventory_df) == 0) {
+    return("No OSF Data")
+  }
+  exts <- unique(tolower(inventory_df$extension))
+  print(exts)
+  analysis_exts <- c("r", "rmd", "py", "sps", "do", "sas", "jl")
+  data_exts <- c(
+    "csv",
+    "xlsx",
+    "xls",
+    "rds",
+    "dta",
+    "sav",
+    "json",
+    "txt",
+    "tsv"
+  )
+  supp_exts <- c("pdf", "docx", "doc", "html")
+
+  has_analysis <- any(tolower(exts) %in% analysis_exts)
+  has_data <- any(tolower(exts) %in% data_exts)
+
+  if (has_analysis && has_data) {
+    return("Both (Analysis + Data)")
+  }
+  if (has_analysis) {
+    return("Analysis Only")
+  }
+  if (has_data) {
+    return("Data Only")
+  }
+
+  # If it's just PDF/Docs
+  if (any(tolower(exts) %in% supp_exts)) {
+    return("Supplement Only (PDF/Doc)")
+  }
+
+  return("Other/Unknown")
+}
+
+epr_summary <- view_file_data(epr_stats)
+
+epr_summary <- epr_summary %>%
+  mutate(class = map_chr(file_inventory, classify_inventory))
+
+epr_total <- epr_summary %>%
+  count(class, name = "counts")
+
+
+print(epr_total)
+
 proportion_stats <- function(stats_df) {
   unique_stats <- stats_df %>%
     filter(publication_year != 2026) %>%
@@ -365,6 +497,10 @@ print(etre_unique)
 
 fe_unique <- proportion_stats(fe_stats)
 print(fe_unique)
+
+esp_unique <- proportion_stats(esp_stats)
+print(esp_unique)
+
 
 stats_final <- function(stats) {
   s1 = sum(stats$unique_linked_papers)
@@ -462,6 +598,8 @@ ggsave("results/etre.png")
 plot_stats(fe_stats, name = "Frontiers in Education")
 ggsave("results/fe.png")
 
+plot_stats(esp_stats, name = "Empirische Sonderpaedagogik")
+ggsave("results/esp.png")
 combined_df <- bind_rows(
   proportion_stats(ze_stats) %>%
     mutate(Journal = "Zeitschrift für Erziehungswissenschaften"),
@@ -475,7 +613,9 @@ combined_df <- bind_rows(
   proportion_stats(etre_stats) %>%
     mutate(Journal = "Educational Technology Research and Development"),
   proportion_stats(fe_stats) %>%
-    mutate(Journal = "Frontiers in Education")
+    mutate(Journal = "Frontiers in Education"),
+  proportion_stats(esp_stats) %>%
+    mutate(Journal = "Empirische Sonderpädagogik")
 )
 
 combined_df <- combined_df %>%
@@ -531,14 +671,14 @@ ggplot(
   scale_x_continuous(breaks = unique(combined_df$publication_year)) +
   labs(
     title = "Vergleich: Anteil der Artikel mit Repositoriums-Links",
-    subtitle = "2017-2025",
+    subtitle = str_glue("2017-2025"),
     x = "Erscheinungsjahr",
     color = "Journal"
   ) +
   scale_fill_brewer(palette = "Pastel2") +
   theme(
     legend.background = element_rect(fill = "white", colour = "black"),
-    legend.position = c(0.125, 0.675),
+    legend.position = c(0.125, 0.575),
     legend.box = "vertical",
     legend.direction = "vertical",
     panel.grid.minor = element_blank(),
@@ -572,12 +712,12 @@ ggplot(
   scale_x_continuous(breaks = unique(combined_df$publication_year)) +
   labs(
     title = "Vergleich: Anzahl der Artikel mit Repositoriums-Links",
-    subtitle = "2017-2025",
+    subtitle = str_glue("2017-2025, N = {sum(combined_df$total_papers)}"),
     x = "Erscheinungsjahr",
     fill = "Journal"
   ) +
-  scale_fill_brewer(palette = "Pastel2") +
-  theme_minimal() +
+  # scale_fill_brewer(palette = "Pastel2") +
+  theme_classic() +
   theme(
     legend.background = element_rect(fill = "white", colour = "black"),
     legend.position = c(0.125, 0.675),
