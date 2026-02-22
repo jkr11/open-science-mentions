@@ -2,6 +2,11 @@ library(tidyverse)
 library(ggplot2)
 library(metacheck)
 library(purrr)
+library(dplyr)
+library(readr)
+library(stringr)
+
+index <- readRDS(file = "full_data.Rds")
 
 clean_links <- function(link_column) {
   map_chr(
@@ -19,65 +24,6 @@ clean_links <- function(link_column) {
   )
 }
 
-ze_links_clean <- ze_stats |>
-  filter(has_link) |>
-  mutate(
-    doi = paste0("https://link.springer.com/article/", doi),
-    all_links = clean_links(all_links)
-  ) |>
-  select(doi, all_links)
-write_excel_csv(
-  ze_links_clean,
-  "results/zeitschrift_fuer_erziehungswissenschaften_links_clean.csv",
-)
-
-ds_links_clean <- ds_stats %>%
-  filter(has_link) %>%
-  mutate(
-    doi = paste0("https://doi.org/", doi),
-    all_links = clean_links(all_links)
-  ) %>%
-  select(doi, all_links)
-write_excel_csv(
-  ds_links_clean,
-  "results/deutsche_schule_links_clean.csv"
-)
-
-zp_links_clean <- zp_stats %>%
-  filter(has_link) %>%
-  mutate(
-    doi = paste0("https://doi.org/", doi),
-    all_links = clean_links(all_links)
-  ) %>%
-  select(doi, all_links)
-write_excel_csv(
-  zp_links_clean,
-  "results/zeitschrift_fuer_paedagogik_links_clean.csv"
-)
-
-mdpi_links_clean <- mdpi_stats_2 %>%
-  filter(has_link) %>%
-  mutate(
-    all_links = clean_links(all_links)
-  ) %>%
-  select(doi, all_links)
-write_excel_csv(
-  mdpi_links_clean,
-  "results/mdpi_links_clean.csv"
-)
-
-epr_links_clean <- epr_stats %>%
-  filter(has_link) %>%
-  mutate(
-    all_links = clean_links(all_links)
-  ) %>%
-  select(doi, all_links)
-write_excel_csv(
-  epr_links_clean,
-  "results/epr_links_clean.csv"
-)
-
-
 write_clean_links <- function(stats, name) {
   clean <- stats %>%
     mutate(
@@ -89,134 +35,6 @@ write_clean_links <- function(stats, name) {
     str_glue("results/{name}.csv")
   )
 }
-write_clean_links(ethe_stats, "ethe_links_clean")
-
-write_clean_links(fe_stats, "fe_links_clean")
-
-write_clean_links(esp_stats, "esp_links_clean")
-
-library(osfr)
-
-# get_osf_files_recursive <- function(entity) {
-#   current_level <- osf_ls_files(entity)
-
-#   if (nrow(current_level) == 0) {
-#     return(NULL)
-#   }
-
-#   files <- osf_ls_files(entity, type = "file")
-#   folders <- osf_ls_files(entity, type = "folder")
-
-#   if (nrow(folders) > 0) {
-#     sub_files <- map_df(
-#       folders$id,
-#       ~ {
-#         sub_entity <- osf_retrieve_file(.x)
-#         get_osf_files_recursive(sub_entity)
-#       }
-#     )
-#     files <- bind_rows(files, sub_files)
-#   }
-
-#   return(files)
-# }
-
-# probe_osf_files <- function(url) {
-#   # Force URL to be a single string and remove whitespace
-#   url <- as.character(url[1])
-#   url <- gsub("\\s+", "", as.character(url[1]))
-#   guid <- str_extract(url, "(?<=osf.io/)[a-z0-9]{5}")
-
-#   if (is.na(guid)) {
-#     message(paste("No GUID found in:", url))
-#     return(NULL)
-#   }
-
-#   tryCatch(
-#     {
-#       entity <- osf_retrieve_node(guid)
-#       files_df <- get_osf_files_recursive(entity)
-
-#       if (nrow(files_df) == 0) {
-#         return(NULL)
-#       }
-
-#       files_df %>%
-#         mutate(
-#           extension = tools::file_ext(name),
-#         ) %>%
-#         select(id, extension, name)
-#     },
-#     error = function(e) {
-#       message(paste("OSF Error for GUID", guid, ":", e$message))
-#       return(NULL)
-#     }
-#   )
-# }
-
-# view_file_data <- function(stats) {
-#   files <- stats %>%
-#     mutate(all_links = clean_links(all_links)) %>%
-#     select(doi, all_links)
-
-#   files$file_inventory <- map(
-#     files$all_links,
-#     ~ map_df(.x, probe_osf_files)
-#   )
-
-#   return(files)
-# }
-
-# classify_inventory <- function(inventory_df) {
-#   if (is.null(inventory_df) || length(inventory_df) == 0) {
-#     return("No OSF Data")
-#   }
-#   exts <- unique(tolower(inventory_df$extension))
-#   print(exts)
-#   analysis_exts <- c("r", "rmd", "py", "sps", "do", "sas", "jl")
-#   data_exts <- c(
-#     "csv",
-#     "xlsx",
-#     "xls",
-#     "rds",
-#     "dta",
-#     "sav",
-#     "json",
-#     "txt",
-#     "tsv"
-#   )
-#   supp_exts <- c("pdf", "docx", "doc", "html")
-
-#   has_analysis <- any(tolower(exts) %in% analysis_exts)
-#   has_data <- any(tolower(exts) %in% data_exts)
-
-#   if (has_analysis && has_data) {
-#     return("Both (Analysis + Data)")
-#   }
-#   if (has_analysis) {
-#     return("Analysis Only")
-#   }
-#   if (has_data) {
-#     return("Data Only")
-#   }
-
-#   # If it's just PDF/Docs
-#   if (any(tolower(exts) %in% supp_exts)) {
-#     return("Supplement Only (PDF/Doc)")
-#   }
-
-#   return("Other/Unknown")
-# }
-
-# epr_summary <- view_file_data(epr_stats)
-
-# epr_summary <- epr_summary %>%
-#   mutate(class = map_chr(file_inventory, classify_inventory))
-
-# epr_total <- epr_summary %>%
-#   count(class, name = "counts")
-
-print(epr_stats$all_links)
 
 ze_stats_cpy <- ze_stats %>% filter(link_count > 0)
 print(ze_stats_cpy)
@@ -380,7 +198,7 @@ combined_df <- bind_rows(
     mutate(Journal = "Zeitschrift für Erziehungswissenschaften"),
   proportion_stats(ds_stats) %>% mutate(Journal = "Deutsche Schule"),
   proportion_stats(zp_stats) %>% mutate(Journal = "Zeitschrift für Pädagogik"),
-  proportion_stats(mdpi_stats_2) %>% mutate(Journal = "Education Sciences"),
+  proportion_stats(mdpi_stats) %>% mutate(Journal = "Education Sciences"),
   proportion_stats(epr_stats) %>%
     mutate(Journal = "Educational Psychology Review"),
   proportion_stats(ethe_stats) %>%
