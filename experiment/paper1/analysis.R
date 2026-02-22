@@ -1,271 +1,30 @@
-library(RSQLite)
-library(dplyr)
-library(metacheck)
 library(tidyverse)
-library(stringr)
-library(scales)
-
-# replace with own working directory (this is intended to be used from top level)
-setwd("/home/jere/projects/open-science-mentions/experiment/paper1")
-setwd("../paper1")
-# "S4210217710" # Deutsche Schule (Waxmann) 1
-# "S40639335" # Zeitschrift für Erziehungswissenschaft (Springer)
-# "S63113783" # Zeitschrift für Paedagogik (Pedocs) 1
-# "S2738008561" Education Sciences MDPI
-# "S4306509262", # Empirische Sonderpädagogik
-
-# Run this everytime the db changes
-conn <- dbConnect(RSQLite::SQLite(), "../../db/index.db")
-query <- "SELECT * FROM works;"
-data_all <- dbGetQuery(conn, query)
-dbDisconnect(conn)
-
-conn_alt <- dbConnect(RSQLite::SQLite(), "../../test_db/index.db")
-data_all <- dbGetQuery(conn_alt, query)
-dbDisconnect(conn_alt)
-
-# manually fix pedocs dates
-# data_all <- data_all %>%
-#   mutate(
-#     publication_year = case_when(
-#       journal_id == "S63113783" ~ format(
-#         as.Date(publication_year, format = "%d.%m.%Y"),
-#         "%Y"
-#       ),
-#       TRUE ~ as.character(publication_year)
-#     )
-#   )
-
-paper_2_df <- function(paper_df, index_df) {
-  meta_df <- info_table(paper_df)
-  index_df <- index_df %>%
-    mutate(id = tools::file_path_sans_ext(basename(tei_local_path)))
-
-  # filter out non papers
-  exclude_patterns <- "(?i)editorial|correction|erratum|errata|author statement|retraction|book review|commentary"
-
-  meta_df <- meta_df %>%
-    filter(!str_detect(title, exclude_patterns))
-
-  aug_df <- meta_df %>%
-    left_join(select(index_df, id, publication_year), by = "id")
-  return(aug_df)
-}
-
-
-# use only on non processed papers in xml format.
-get_journal_stats <- function(
-  target_journal_id,
-  previous_stats = NULL,
-  filename = target_journal_id
-) {
-  index <- data_all %>% filter(journal_id == target_journal_id)
-
-  if (nrow(index) == 0) {
-    stop("No records found for the provided journal_id.")
-  } else {
-    print(nrow(index))
-  }
-
-  index <- index %>% filter(tei_process_status == "DONE")
-
-  if (nrow(index) == 0) {
-    stop("Convert to TEI first.")
-  } else {
-    print(nrow(index))
-  }
-
-  # If this function was run at a previous time where data_all was not fully populated or new data is now available, use this for an incremental update
-  if (!is.null(previous_stats)) {
-    print(nrow(previous_stats))
-    previous_stats <- previous_stats %>%
-      mutate(doi = paste0("https://doi.org/", doi))
-    index <- index %>% anti_join(previous_stats, by = "doi")
-
-    if (nrow(index) == 0) {
-      message("No new records to process.")
-      return(previous_stats)
-    }
-    print(paste("Processing", nrow(index), "new records..."))
-  } else {
-    print(nrow(index))
-  }
-
-  save_name = str_glue("{filename}.Rda")
-
-  index$tei_local_path <- paste0(
-    "../../db/teis/",
-    index$tei_local_path
-  )
-
-  # uncomment for new data (!SLOW!)
-  papers <- metacheck::read(index$tei_local_path)
-  save(papers, file = save_name)
-  # load(save_name)
-  osf_links <- metacheck::osf_links(papers)
-  git_links <- metacheck::github_links(papers)
-  stats <- paper_2_df(papers, index)
-
-  links <- bind_rows(
-    osf_links %>% select(id, text) %>% mutate(source_type = "OSF"),
-    git_links %>% select(id, text) %>% mutate(source_type = "GitHub")
-  ) %>%
-    distinct(id, text, .keep_all = TRUE)
-
-  print(links)
-
-  links_by_id <- links %>%
-    left_join(select(stats, id, publication_year), by = "id") %>%
-    distinct()
-
-  links_by_id <- links_by_id %>%
-    group_by(id) %>%
-    summarise(
-      all_links = list(text),
-      link_count = n_distinct(text),
-      .groups = "drop"
-    )
-
-  stats <- stats %>%
-    left_join(links_by_id, by = "id") %>%
-    mutate(
-      has_link = !is.na(link_count),
-      link_count = replace_na(link_count, 0)
-    )
-
-  if (!is.null(previous_stats)) {
-    final_stats <- bind_rows(previous_stats, stats)
-    return(final_stats)
-  }
-  return(stats)
-}
-
-# ds_stats <- get_journal_stats("S4210217710") # Deutsche Schule (Waxmann) 1
-# ze_stats <- get_journal_stats("S40639335") # Zeitschrift für Erziehungswissenschaft (Springer) 35 # 464
-#
-# zp_stats <- get_journal_stats("S63113783") # Zeitschrift für Paedagogik (Pedocs) 1
-# save(ds_stats, file = "ds_stats.Rda")
-# save(ze_stats, file = "ze_stats.Rda")
-# save(zp_stats, file = "zp_stats.Rda")
-load("zp_stats.Rda")
-load("ze_stats.Rda")
-load("ds_stats.Rda")
-
-#mdpi_stats <- get_journal_stats("S2738008561")
-#save(mdpi_stats, file = "mdpi_stats.Rda")
-load(file = "mdpi_stats.Rda")
-
-
-# mdpi_stats_2 <- get_journal_stats(
-#   "S2738008561",
-#   previous_stats = mdpi_stats,
-#   filename = "S2738008561_2"
-# )
-# save(mdpi_stats_2, file = "mdpi_stats_2.Rda")
-load(file = "mdpi_stats_2.Rda")
-
-#zg_stats <- get_journal_stats("S4210233694")
-#save(zg_stats, file = "zg_stats.Rda")
-load("zg_stats.Rda")
-#epr_stats <- get_journal_stats("S187318745") # Educational Psychology Review
-#save(epr_stats, file = "epr_stats.Rda")
-load("epr_stats.Rda")
-# ethe_stats <- get_journal_stats("S4210201537")
-# save(ethe_stats, file = "ethe_stats.Rda")
-
-load("ethe_stats.Rda")
-
-# etre_stats <- get_journal_stats("S114840262")
-# save(etre_stats, file = "etre_stats.Rda")
-load("etre_stats.Rda")
-
-
-# fe_stats <- get_journal_stats("S2596526815")
-# save(fe_stats, file = "fe_stats.Rda")
-
-load("fe_stats.Rda")
-
-# esp_stats <- get_journal_stats("S4306509262")
-# save(esp_stats, file = "esp_stats.Rda")
-
-load("esp_stats.Rda")
-# How many paper were actually processed?
-download_statistics <- function(id, stats_df) {
-  data_loc <- data_all %>%
-    filter(journal_id == id, publication_year != 2026)
-  pstats <- data_loc %>%
-    summarise(
-      total_records = n(),
-      pdfs_downloaded = sum(pdf_download_status == "DONE", na.rm = TRUE),
-      pdf_download_rate = pdfs_downloaded / total_records,
-
-      tei_processed = sum(tei_process_status == "DONE", na.rm = TRUE),
-      tei_success_rate = tei_processed / total_records,
-
-      actually_handled = nrow(stats_df)
-    )
-  return(pstats)
-}
-
-write.csv(
-  download_statistics("S4210217710", ds_stats),
-  file = "results/ds_download_statistics.csv",
-  quote = FALSE,
-  row.names = FALSE
-)
-
-write.csv(
-  download_statistics("S40639335", ze_stats),
-  file = "results/ze_download_statistics.csv",
-  quote = FALSE,
-  row.names = FALSE
-)
-
-write.csv(
-  download_statistics("S63113783", zp_stats),
-  file = "results/zp_download_statistics.csv",
-  quote = FALSE,
-  row.names = FALSE
-)
-
-# write.csv(
-#   download_statistics("S2738008561", mdpi_stats),
-#   file = "results/mdpi_download_statistics.csv",
-#   quote = FALSE,
-#   row.names = FALSE
-# )
-
-write.csv(
-  download_statistics("S2738008561", mdpi_stats_2),
-  file = "results/mdpi_download_statistics.csv",
-  quote = FALSE,
-  row.names = FALSE
-)
-
-print(ze_stats$all_links)
+library(ggplot2)
+library(metacheck)
+library(purrr)
 
 clean_links <- function(link_column) {
   map_chr(
     link_column,
     ~ {
-      .x %>%
-        str_trim() %>%
-        str_to_lower() %>%
-        str_remove("^https?://") %>%
-        str_remove_all("/+$") %>%
-        unique() %>%
-        str_c("https://", .) %>%
+      .x |>
+        str_trim() |>
+        str_to_lower() |>
+        str_remove("^https?://") |>
+        str_remove_all("/+$") |>
+        unique() |>
+        str_c("https://", .) |>
         paste(collapse = "; ")
     }
   )
 }
 
-ze_links_clean <- ze_stats %>%
-  filter(has_link) %>%
+ze_links_clean <- ze_stats |>
+  filter(has_link) |>
   mutate(
     doi = paste0("https://link.springer.com/article/", doi),
     all_links = clean_links(all_links)
-  ) %>%
+  ) |>
   select(doi, all_links)
 write_excel_csv(
   ze_links_clean,
@@ -338,127 +97,137 @@ write_clean_links(esp_stats, "esp_links_clean")
 
 library(osfr)
 
-get_osf_files_recursive <- function(entity) {
-  current_level <- osf_ls_files(entity)
+# get_osf_files_recursive <- function(entity) {
+#   current_level <- osf_ls_files(entity)
 
-  if (nrow(current_level) == 0) {
-    return(NULL)
-  }
+#   if (nrow(current_level) == 0) {
+#     return(NULL)
+#   }
 
-  files <- osf_ls_files(entity, type = "file")
-  folders <- osf_ls_files(entity, type = "folder")
+#   files <- osf_ls_files(entity, type = "file")
+#   folders <- osf_ls_files(entity, type = "folder")
 
-  if (nrow(folders) > 0) {
-    sub_files <- map_df(
-      folders$id,
-      ~ {
-        sub_entity <- osf_retrieve_file(.x)
-        get_osf_files_recursive(sub_entity)
-      }
-    )
-    files <- bind_rows(files, sub_files)
-  }
+#   if (nrow(folders) > 0) {
+#     sub_files <- map_df(
+#       folders$id,
+#       ~ {
+#         sub_entity <- osf_retrieve_file(.x)
+#         get_osf_files_recursive(sub_entity)
+#       }
+#     )
+#     files <- bind_rows(files, sub_files)
+#   }
 
-  return(files)
-}
+#   return(files)
+# }
 
-probe_osf_files <- function(url) {
-  # Force URL to be a single string and remove whitespace
-  url <- as.character(url[1])
-  url <- gsub("\\s+", "", as.character(url[1]))
-  guid <- str_extract(url, "(?<=osf.io/)[a-z0-9]{5}")
+# probe_osf_files <- function(url) {
+#   # Force URL to be a single string and remove whitespace
+#   url <- as.character(url[1])
+#   url <- gsub("\\s+", "", as.character(url[1]))
+#   guid <- str_extract(url, "(?<=osf.io/)[a-z0-9]{5}")
 
-  if (is.na(guid)) {
-    message(paste("No GUID found in:", url))
-    return(NULL)
-  }
+#   if (is.na(guid)) {
+#     message(paste("No GUID found in:", url))
+#     return(NULL)
+#   }
 
-  tryCatch(
-    {
-      entity <- osf_retrieve_node(guid)
-      files_df <- get_osf_files_recursive(entity)
+#   tryCatch(
+#     {
+#       entity <- osf_retrieve_node(guid)
+#       files_df <- get_osf_files_recursive(entity)
 
-      if (nrow(files_df) == 0) {
-        return(NULL)
-      }
+#       if (nrow(files_df) == 0) {
+#         return(NULL)
+#       }
 
-      files_df %>%
-        mutate(
-          extension = tools::file_ext(name),
-        ) %>%
-        select(id, extension, name)
-    },
-    error = function(e) {
-      message(paste("OSF Error for GUID", guid, ":", e$message))
-      return(NULL)
-    }
-  )
-}
+#       files_df %>%
+#         mutate(
+#           extension = tools::file_ext(name),
+#         ) %>%
+#         select(id, extension, name)
+#     },
+#     error = function(e) {
+#       message(paste("OSF Error for GUID", guid, ":", e$message))
+#       return(NULL)
+#     }
+#   )
+# }
 
-view_file_data <- function(stats) {
-  files <- stats %>%
-    mutate(all_links = clean_links(all_links)) %>%
-    select(doi, all_links)
+# view_file_data <- function(stats) {
+#   files <- stats %>%
+#     mutate(all_links = clean_links(all_links)) %>%
+#     select(doi, all_links)
 
-  files$file_inventory <- map(
-    files$all_links,
-    ~ map_df(.x, probe_osf_files)
-  )
+#   files$file_inventory <- map(
+#     files$all_links,
+#     ~ map_df(.x, probe_osf_files)
+#   )
 
-  return(files)
-}
+#   return(files)
+# }
 
-classify_inventory <- function(inventory_df) {
-  if (is.null(inventory_df) || length(inventory_df) == 0) {
-    return("No OSF Data")
-  }
-  exts <- unique(tolower(inventory_df$extension))
-  print(exts)
-  analysis_exts <- c("r", "rmd", "py", "sps", "do", "sas", "jl")
-  data_exts <- c(
-    "csv",
-    "xlsx",
-    "xls",
-    "rds",
-    "dta",
-    "sav",
-    "json",
-    "txt",
-    "tsv"
-  )
-  supp_exts <- c("pdf", "docx", "doc", "html")
+# classify_inventory <- function(inventory_df) {
+#   if (is.null(inventory_df) || length(inventory_df) == 0) {
+#     return("No OSF Data")
+#   }
+#   exts <- unique(tolower(inventory_df$extension))
+#   print(exts)
+#   analysis_exts <- c("r", "rmd", "py", "sps", "do", "sas", "jl")
+#   data_exts <- c(
+#     "csv",
+#     "xlsx",
+#     "xls",
+#     "rds",
+#     "dta",
+#     "sav",
+#     "json",
+#     "txt",
+#     "tsv"
+#   )
+#   supp_exts <- c("pdf", "docx", "doc", "html")
 
-  has_analysis <- any(tolower(exts) %in% analysis_exts)
-  has_data <- any(tolower(exts) %in% data_exts)
+#   has_analysis <- any(tolower(exts) %in% analysis_exts)
+#   has_data <- any(tolower(exts) %in% data_exts)
 
-  if (has_analysis && has_data) {
-    return("Both (Analysis + Data)")
-  }
-  if (has_analysis) {
-    return("Analysis Only")
-  }
-  if (has_data) {
-    return("Data Only")
-  }
+#   if (has_analysis && has_data) {
+#     return("Both (Analysis + Data)")
+#   }
+#   if (has_analysis) {
+#     return("Analysis Only")
+#   }
+#   if (has_data) {
+#     return("Data Only")
+#   }
 
-  # If it's just PDF/Docs
-  if (any(tolower(exts) %in% supp_exts)) {
-    return("Supplement Only (PDF/Doc)")
-  }
+#   # If it's just PDF/Docs
+#   if (any(tolower(exts) %in% supp_exts)) {
+#     return("Supplement Only (PDF/Doc)")
+#   }
 
-  return("Other/Unknown")
-}
+#   return("Other/Unknown")
+# }
 
-epr_summary <- view_file_data(epr_stats)
+# epr_summary <- view_file_data(epr_stats)
 
-epr_summary <- epr_summary %>%
-  mutate(class = map_chr(file_inventory, classify_inventory))
+# epr_summary <- epr_summary %>%
+#   mutate(class = map_chr(file_inventory, classify_inventory))
 
-epr_total <- epr_summary %>%
-  count(class, name = "counts")
+# epr_total <- epr_summary %>%
+#   count(class, name = "counts")
 
+print(epr_stats$all_links)
 
-print(epr_total)
+ze_stats_cpy <- ze_stats %>% filter(link_count > 0)
+print(ze_stats_cpy)
+ze_stats_cpy <- ze_stats_cpy %>%
+  mutate(info = map(all_links, ~ osf_retrieve(.x, recursive = TRUE)))
+
+# ze_stats_cpy <- ze_stats_cpy %>%
+#   mutate(summary = map(info, ~ summarize_contents(.x)))
+#
+# test_data <- ze_stats_cpy$info[[2]]
+# print(test_data)
 
 proportion_stats <- function(stats_df) {
   unique_stats <- stats_df %>%
@@ -517,6 +286,12 @@ mdpisf <- stats_final(mdpi_unique)
 print(mdpisf)
 library(ggplot2)
 library(scales)
+
+
+theme_set(
+  theme_classic() +
+    theme(text = element_text(family = "Courier"))
+)
 
 
 plot_stats <- function(stats_df, name) {
@@ -641,7 +416,6 @@ ggplot(
     x = "Erscheinungsjahr",
     color = "Journal / Quelle"
   ) +
-  theme_minimal() +
   theme(
     legend.position = "bottom",
     panel.grid.minor = element_blank()
@@ -717,7 +491,6 @@ ggplot(
     fill = "Journal"
   ) +
   # scale_fill_brewer(palette = "Pastel2") +
-  theme_classic() +
   theme(
     legend.background = element_rect(fill = "white", colour = "black"),
     legend.position = c(0.125, 0.675),
