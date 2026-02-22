@@ -180,32 +180,6 @@ batches <- bind_rows(processed_batches) |> select(openalex_id, paper_obj)
 data <- data |>
   left_join(batches, by = "openalex_id")
 
-selection <- c("ze", "ds")
-
-selected_journals <- journal_map %>%
-  filter(short %in% selection)
-
-force_recompute <- FALSE
-
-pwalk(selected_journals, function(short, id, full_name) {
-  var_name <- paste0(short, "_stats")
-  file_path <- paste0("data/", paste0(var_name, ".Rda"))
-  print(file_path)
-  should_compute <- force_recompute || !file.exists(file_path)
-
-  if (should_compute) {
-    message(sprintf("Computing/Downloading stats for: %s...", full_name))
-
-    stats_data <- get_journal_stats(id)
-
-    assign(var_name, stats_data, envir = .GlobalEnv)
-    save(list = var_name, file = file_path)
-  } else {
-    message(sprintf("Loading existing file for: %s", short))
-    load(file_path, envir = .GlobalEnv)
-  }
-})
-
 #' Counts how many papers were actually processed. Note this only works if you have the full database.
 download_statistics <- function(id, stats_df) {
   data_loc <- data_all %>%
@@ -231,33 +205,4 @@ write.csv(
   row.names = FALSE
 )
 
-selection <- journal_map %>% filter(!short == "fe")
-
-stats_to_join <- pmap_dfr(
-  selection,
-  function(short, id, full_name, ...) {
-    obj_name <- paste0(short, "_stats")
-
-    if (exists(obj_name)) {
-      get(obj_name) %>%
-        select(-any_of(c("publication_year", "doi"))) %>%
-        mutate(
-          id = paste0(id, ".xml"),
-          journal_short = short,
-          journal_long = full_name
-        )
-    } else {
-      message(paste("Warning: Object", obj_name, "not found in environment."))
-      NULL
-    }
-  }
-)
-
-load(file = "data/mdpi_stats.Rda")
-print(stats_to_join %>% filter(journal_short == "mdpi"))
-
-data2 <- data %>%
-  left_join(stats_to_join, by = c("tei_local_path" = "id"))
-
-write_excel_csv(data2, "test.csv")
-saveRDS(data2, file = "full_data.Rds")
+saveRDS(data, file = "data/data_with_journals.rds")

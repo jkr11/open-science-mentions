@@ -6,7 +6,41 @@ library(dplyr)
 library(readr)
 library(stringr)
 
-index <- readRDS(file = "full_data.Rds")
+index <- readRDS(file = "data/data_with_journals.rds")
+
+# Add in links from github and osf
+
+index_with_links <- index |>
+  mutate(
+    osf_links_obj = map(
+      paper_obj,
+      possibly(~ metacheck::osf_links(.x), otherwise = NULL)
+    ),
+    git_links_obj = map(
+      paper_obj,
+      possibly(~ metacheck::github_links(.x), otherwise = NULL)
+    ),
+    has_osf = map_lgl(osf_links_obj, ~ length(.x) > 0),
+    has_git = map_lgl(git_links_obj, ~ length(.x) > 0)
+  )
+
+scrub_links <- function(lt) {
+  if (is.null(lt) || (is.data.frame(lt) && nrow(lt) == 0)) {
+    return(character(0))
+  }
+
+  lt %>%
+    pull(text) %>%
+    str_remove_all("\\s+") %>%
+    tolower() %>%
+    unique()
+}
+
+index_with_links <- index_with_links |>
+  mutate(
+    all_osf_links = map(osf_links_obj, scrub_links),
+    all_git_links = map(git_links_obj, scrub_links)
+  )
 
 clean_links <- function(link_column) {
   map_chr(
@@ -36,16 +70,12 @@ write_clean_links <- function(stats, name) {
   )
 }
 
+
 ze_stats_cpy <- ze_stats %>% filter(link_count > 0)
 print(ze_stats_cpy)
 ze_stats_cpy <- ze_stats_cpy %>%
   mutate(info = map(all_links, ~ osf_retrieve(.x, recursive = TRUE)))
 
-# ze_stats_cpy <- ze_stats_cpy %>%
-#   mutate(summary = map(info, ~ summarize_contents(.x)))
-#
-# test_data <- ze_stats_cpy$info[[2]]
-# print(test_data)
 
 proportion_stats <- function(stats_df) {
   unique_stats <- stats_df %>%
