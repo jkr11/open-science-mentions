@@ -22,6 +22,10 @@ paperData.Rda
 *.Rhistory
 frontiersEdPapers.csv
 /frontiersEdPapers.csv
+*.rds
+*.Rds
+!experiment/paper1/data/index.rds
+experiment/paper1/data_copy
 
 ### PYTHON ###
 # Byte-compiled / optimized / DLL files

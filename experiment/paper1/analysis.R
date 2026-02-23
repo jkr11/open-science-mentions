@@ -5,11 +5,14 @@ library(purrr)
 library(dplyr)
 library(readr)
 library(stringr)
+library(nlme)
+library(scales)
+
+setwd("experiment/paper1")
 
 index <- readRDS(file = "data/data_with_journals.rds")
 
 # Add in links from github and osf
-
 index_with_links <- index |>
   mutate(
     osf_links_obj = map(
@@ -20,9 +23,10 @@ index_with_links <- index |>
       paper_obj,
       possibly(~ metacheck::github_links(.x), otherwise = NULL)
     ),
-    has_osf = map_lgl(osf_links_obj, ~ length(.x) > 0),
-    has_git = map_lgl(git_links_obj, ~ length(.x) > 0)
+    has_osf = map_lgl(osf_links_obj, ~ !is.null(.x) && nrow(.x) > 0),
+    has_git = map_lgl(git_links_obj, ~ !is.null(.x) && nrow(.x) > 0)
   )
+
 
 scrub_links <- function(lt) {
   if (is.null(lt) || (is.data.frame(lt) && nrow(lt) == 0)) {
@@ -39,8 +43,13 @@ scrub_links <- function(lt) {
 index_with_links <- index_with_links |>
   mutate(
     all_osf_links = map(osf_links_obj, scrub_links),
-    all_git_links = map(git_links_obj, scrub_links)
+    all_git_links = map(git_links_obj, scrub_links),
+    has_any_link = has_osf | has_git
   )
+
+index_with_links <- index_with_links |>
+  filter(journal_short != "mdpi") |>
+  filter(publication_year > 2016)
 
 clean_links <- function(link_column) {
   map_chr(
@@ -58,6 +67,45 @@ clean_links <- function(link_column) {
   )
 }
 
+safe_retrieve <- possibly(metacheck::osf_retrieve, otherwise = NULL)
+
+# OSF Token is needed here
+# TODO: api doesnt fully complete here, rerun this where Failed.
+index_with_links <- index_with_links |>
+  mutate(
+    info = map2(
+      all_osf_links,
+      has_osf,
+      ~ if (.y) safe_retrieve(.x, recursive = TRUE) else NULL
+    )
+  )
+
+index_with_links <- index_with_links |>
+  mutate(
+    temp_content = map(
+      info,
+      function(x) {
+        if (is.null(x) || identical(x, "Fail")) {
+          return(tibble(has_data = FALSE, has_code = FALSE, has_supp = FALSE))
+        }
+        if (!is.data.frame(x) || nrow(x) == 0) {
+          return(tibble(has_data = FALSE, has_code = FALSE, has_supp = FALSE))
+        }
+        all_types <- tolower(paste(
+          tidyr::replace_na(x$filetype, ""),
+          collapse = " "
+        ))
+        tibble(
+          has_data = str_detect(all_types, "data"),
+          has_code = str_detect(all_types, "code|syntax|script"),
+          has_supp = str_detect(all_types, "text|video|web")
+        )
+      }
+    )
+  ) |>
+  unnest(temp_content)
+
+
 write_clean_links <- function(stats, name) {
   clean <- stats %>%
     mutate(
@@ -70,206 +118,46 @@ write_clean_links <- function(stats, name) {
   )
 }
 
-
-ze_stats_cpy <- ze_stats %>% filter(link_count > 0)
-print(ze_stats_cpy)
-ze_stats_cpy <- ze_stats_cpy %>%
-  mutate(info = map(all_links, ~ osf_retrieve(.x, recursive = TRUE)))
-
-
-proportion_stats <- function(stats_df) {
-  unique_stats <- stats_df %>%
-    filter(publication_year != 2026) %>%
-    group_by(publication_year) %>%
-    summarise(
-      total_papers = n_distinct(id),
-      unique_linked_papers = sum(has_link),
-      proportion_linked = unique_linked_papers / total_papers,
-      .groups = "drop"
-    )
-  return(unique_stats)
-}
-
-ds_unique <- proportion_stats(ds_stats)
-print(ds_unique)
-
-
-ze_unique <- proportion_stats(ze_stats)
-print(ze_unique)
-
-zp_unique <- proportion_stats(zp_stats)
-print(zp_unique)
-
-mdpi_unique <- proportion_stats(mdpi_stats_2)
-print(mdpi_unique)
-
-epr_unique <- proportion_stats(epr_stats)
-print(epr_unique)
-
-ethe_unique <- proportion_stats(ethe_stats)
-print(ethe_unique)
-
-etre_unique <- proportion_stats(etre_stats)
-print(etre_unique)
-
-fe_unique <- proportion_stats(fe_stats)
-print(fe_unique)
-
-esp_unique <- proportion_stats(esp_stats)
-print(esp_unique)
-
-
-stats_final <- function(stats) {
-  s1 = sum(stats$unique_linked_papers)
-  s2 = sum(stats$total_papers)
-  return(list(s1, s2, s1 / s2))
-}
-
-dssf <- stats_final(ds_unique)
-print(dssf)
-zesf <- stats_final(ze_unique)
-print(zesf)
-
-mdpisf <- stats_final(mdpi_unique)
-print(mdpisf)
-library(ggplot2)
-library(scales)
-
-
 theme_set(
   theme_classic() +
     theme(text = element_text(family = "Courier"))
 )
 
-
-plot_stats <- function(stats_df, name) {
-  unique_df = proportion_stats(stats_df)
-
-  max_count <- max(unique_df$unique_linked_papers, na.rm = TRUE)
-  max_prop <- max(unique_df$proportion_linked, na.rm = TRUE)
-
-  scale_factor <- max_count / (max_prop * 1.1)
-
-  count_breaks <- seq(0, max_count, by = 1)
-
-  ggplot(unique_df, aes(x = publication_year)) +
-    geom_col(
-      aes(y = unique_linked_papers / scale_factor, fill = "Paper mit Link"),
-      alpha = 0.3,
-      width = 0.6
-    ) +
-
-    geom_line(aes(y = proportion_linked, color = "Anteil"), size = 1) +
-    geom_point(aes(y = proportion_linked, color = "Anteil"), size = 3) +
-
-    scale_y_continuous(
-      name = "Anteil (Prozent)",
-      labels = label_percent(accuracy = 1),
-      limits = c(0, max_prop * 1.1),
-      sec.axis = sec_axis(
-        trans = ~ . * scale_factor,
-        name = "Anzahl (Paper mit Link)",
-        #breaks = count_breaks
-      )
-    ) +
-
-    scale_x_continuous(breaks = unique_df$publication_year) +
-    scale_color_manual(name = "", values = c("Anteil" = "steelblue")) +
-    scale_fill_manual(name = "", values = c("Paper mit Link" = "gray70")) +
-    labs(
-      title = "Anteil der Artikel mit Repositoriums-Links (OSF/GIT)",
-      subtitle = str_glue(
-        "2017-2025, {name}, N={nrow(stats_df)}"
+calc_combined_proportions <- function(master_df) {
+  master_df |>
+    filter(publication_year != 2026) |>
+    filter(publication_year != 2016) |>
+    mutate(
+      has_any_link = has_osf | has_git
+    ) |>
+    group_by(journal_long, publication_year) |>
+    summarise(
+      total_papers = n_distinct(openalex_id),
+      unique_linked_papers = sum(
+        has_any_link,
+        na.rm = TRUE
       ),
-      x = "Erscheinungsjahr"
-    ) +
-    theme_minimal() +
-    theme(
-      legend.position = "bottom",
-      axis.title.y.left = element_text(color = "steelblue"),
-      axis.title.y.right = element_text(color = "gray40"),
-      panel.grid.minor = element_blank()
-    )
+      proportion_linked = unique_linked_papers / total_papers,
+      .groups = "drop"
+    ) |>
+    group_by(journal_long) |>
+    mutate(
+      FigureName = str_glue("{journal_long} (N = {sum(total_papers)})")
+    ) |>
+    ungroup()
 }
 
-plot_stats(
-  ze_stats,
-  name = "Zeitschrift für Erziehungswissenschaften (Springer)"
-)
-ggsave("results/ze.png")
-plot_stats(ds_stats, name = "Deutsche Schule (Waxmann)")
-ggsave("results/ds.png")
-plot_stats(
-  zp_stats,
-  name = "Zeitschrift für Pädagogik (Beltz/Pedocs)"
-)
-ggsave("results/zp.png")
-plot_stats(
-  mdpi_stats_2,
-  name = "Education Sciences"
-)
-ggsave("results/mdpi.png")
-plot_stats(epr_stats, name = "Educational Psychology Review")
-ggsave("results/epr.png")
-
-plot_stats(ethe_stats, name = "Education Technology in higher Education")
-ggsave("results/ethe.png")
-
-plot_stats(etre_stats, name = "Education Technology Research and Developement")
-ggsave("results/etre.png")
-
-plot_stats(fe_stats, name = "Frontiers in Education")
-ggsave("results/fe.png")
-
-plot_stats(esp_stats, name = "Empirische Sonderpaedagogik")
-ggsave("results/esp.png")
-combined_df <- bind_rows(
-  proportion_stats(ze_stats) %>%
-    mutate(Journal = "Zeitschrift für Erziehungswissenschaften"),
-  proportion_stats(ds_stats) %>% mutate(Journal = "Deutsche Schule"),
-  proportion_stats(zp_stats) %>% mutate(Journal = "Zeitschrift für Pädagogik"),
-  proportion_stats(mdpi_stats) %>% mutate(Journal = "Education Sciences"),
-  proportion_stats(epr_stats) %>%
-    mutate(Journal = "Educational Psychology Review"),
-  proportion_stats(ethe_stats) %>%
-    mutate(Journal = "Educational Technology in higher Education"),
-  proportion_stats(etre_stats) %>%
-    mutate(Journal = "Educational Technology Research and Development"),
-  proportion_stats(fe_stats) %>%
-    mutate(Journal = "Frontiers in Education"),
-  proportion_stats(esp_stats) %>%
-    mutate(Journal = "Empirische Sonderpädagogik")
+combined_df <- calc_combined_proportions(
+  index_with_links
 )
 
-combined_df <- combined_df %>%
-  group_by(Journal) %>%
-  mutate(FigureName = str_glue("{Journal} (N = {sum(total_papers)})")) %>%
-  ungroup()
-
-ggplot(
-  combined_df,
-  aes(x = publication_year, y = proportion_linked, color = Journal)
-) +
-  geom_line(size = 1) +
-  geom_point(size = 3) +
-  scale_y_continuous(
-    name = "Anteil (Prozent)",
-    labels = label_percent(accuracy = 1),
-    limits = c(0, max(combined_df$proportion_linked, na.rm = TRUE) * 1.1)
-  ) +
-  scale_x_continuous(breaks = unique(combined_df$publication_year)) +
-  labs(
-    title = "Vergleich: Anteil der Artikel mit Repositoriums-Links",
-    subtitle = "2017-2025",
-    x = "Erscheinungsjahr",
-    color = "Journal / Quelle"
-  ) +
-  theme(
-    legend.position = "bottom",
-    panel.grid.minor = element_blank()
-  )
-
-ggsave("results/combined_stats.png", width = 10, height = 6)
+fit <- lme(
+  fixed = log(proportion_linked + 0.001) ~ publication_year,
+  random = ~ publication_year | journal_long,
+  data = combined_df,
+  #weights = varFixed(~ I(1 / total_papers))
+)
+summary(fit)
 
 ggplot(
   combined_df,
@@ -306,7 +194,6 @@ ggplot(
     panel.grid.minor = element_blank(),
   )
 ggsave("results/uebersicht.png", width = 10, height = 8)
-# ggsave("results/combined_by_size.png", width = 10, height = 6)
 
 ggplot(
   combined_df,
@@ -338,7 +225,6 @@ ggplot(
     x = "Erscheinungsjahr",
     fill = "Journal"
   ) +
-  # scale_fill_brewer(palette = "Pastel2") +
   theme(
     legend.background = element_rect(fill = "white", colour = "black"),
     legend.position = c(0.125, 0.675),
