@@ -236,8 +236,8 @@ class PDFDownloader:
   async def download_browser(self, url: str) -> str | None:
     ctime = time.time() - self.time_since_last_init
     print(f"Time: {ctime}/{self.switch_time}")
-    if ctime > self.switch_time:
-      await self.rotate(reinit=False)
+    #if ctime > self.switch_time:
+    #  await self.rotate(reinit=False)
     print(f"Handling URL: {url}")
     if not self.browser:
       self.log("Reiniting browser")
@@ -260,7 +260,7 @@ class PDFDownloader:
       #   print(f"Redirect to: {await self.browser.current_url}")
       #   if await self.is_institution_login_available():
       #     raise Exception("Institutional login")
-      if not await self._wait_for_page_load(timeout=5):
+      if not await self._wait_for_page_load(timeout=10):
         self.log(f"[x] Page load timeout for {url}", R)
         return None
         raise Exception("Timeoout when loading page")

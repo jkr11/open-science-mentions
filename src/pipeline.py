@@ -118,7 +118,7 @@ async def download_batch_by_journal_async_(
 
 
 async def download_batch_by_journal_async(
-  journal_id: str, batch_size=20, switch_time=30, allow_rotate=True, which="PENDING"
+  journal_id: str, batch_size=20, switch_time=30, allow_rotate=False, which="PENDING"
 ) -> bool:
   downloader = PDFDownloader(
     DOWNLOAD_DIR_PDFS,
@@ -489,6 +489,8 @@ ED_JOURNALS = [
   "s179605291",  # Language Teaching Research, 15.7%
 ]
 
+
+
 DE_JOURNALS = [
   "S40639335",  # Zeitschrift für Erziehungswissenschaften (Springer)
   "S4210217710",  # Deutsche Schule (Waxmann)
@@ -502,23 +504,30 @@ PSYCH_JOURNALS = [
   "s27228949",  # Perspectives on psychological sciences (SAGE)
 ]
 
+PAPER_JOURNALS = [
+  "s2764918247", # COGENT EDUCATION
+  "s4210191100", # Frontline Learning Research
+  "S2738252563", # AERA Open
+  "s148277943", # SAGE Open
+]
+
 
 async def main(journal_id):
   while True:
     succ = await download_batch_by_journal_async(
-      journal_id, 1000, 50, True, which="PENDING"
+      journal_id, 1000, 50, False, which="PENDING",
     )
     if not succ:
       break
 
 # _cursor="IlsxNjgxOTQ4ODAwMDAwLCA5OS4wLCAxMywgJ2h0dHBzOi8vb3BlbmFsZXgub3JnL1c0MzY2Nzc1NjI0J10i"
 if __name__ == "__main__":
-  journal = "S4306509262"
+  journal = PAPER_JOURNALS[3]
   # vpn.rotate_vpn_server()
-  # for work in get_journal_by_id([journal], 100, 2016):
-  #    insert_work_metadata_sql(work)
-  # transform_url_by_journal(DE_JOURNALS[N])  
-  # asyncio.run(main(journal))
+  for work in get_journal_by_id([journal], 100, 2016):
+      insert_work_metadata_sql(work)
+  #transform_url_by_journal(DE_JOURNALS[N])  
+  #asyncio.run(main(journal))
 
-  while grobid_batch(journal, 40, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS): ...
+  # while grobid_batch(journal, 40, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS): ...
 
