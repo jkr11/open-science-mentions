@@ -11,11 +11,11 @@ setwd("experiment/paper1")
 
 # TODO: save this as a csv
 # Run this everytime the db changes
-# conn <- dbConnect(RSQLite::SQLite(), "../../db/index.db")
-# query <- "SELECT * FROM works;"return
-# data_all <- dbGetQuery(conn, query)
-# dbDisconnect(conn)
-# saveRDS(data_all, "data/index.Rds")
+conn <- dbConnect(RSQLite::SQLite(), "../../db/index.db")
+query <- "SELECT * FROM works;"
+data_all <- dbGetQuery(conn, query)
+dbDisconnect(conn)
+saveRDS(data_all, "data/index.Rds")
 
 data_all <- readRDS(file = "data/index.Rds")
 # some of the doi links were wrong in the db.
@@ -35,7 +35,10 @@ journal_map <- tribble(
   "ethe" , "S4210201537" , "Educational Technology in Higher Education"      ,
   "etre" , "S114840262"  , "Educational Technology Research and Development" ,
   "fe"   , "S2596526815" , "Frontiers in Education"                          ,
-  "esp"  , "S4306509262" , "Empirische Sonderpädagogik"
+  "esp"  , "S4306509262" , "Empirische Sonderpädagogik"                      ,
+  "cog"  , "S2764918247" , "COGENT EDUCATION"                                ,
+  "flr"  , "S4210191100" , "Frontline Learning Research"                     ,
+  "aero" , "S2738252563" , "AERA Open"                                      
 )
 
 reg <- journal_map |>
@@ -43,18 +46,17 @@ reg <- journal_map |>
 
 data <- data |> left_join(reg, by = c("journal_id" = "id"))
 
-
 journal_batches <- data |>
-  filter(!journal_short %in% c("fe", "mdpi")) |>
+  filter(journal_short %in% c("cog", "flr", "aero")) |>
   group_split(journal_id)
 
 processed_batches <- map(journal_batches, function(batch_data) {
   current_id <- unique(batch_data$journal_id)
   save_path <- paste0("data/journal_batches/data_", current_id, ".rds")
 
-  if (file.exists(save_path)) {
-    return(readRDS(save_path))
-  }
+  #if (file.exists(save_path)) {
+  #  return(readRDS(save_path))
+  #}
 
   processed_batch <- batch_data |>
     mutate(

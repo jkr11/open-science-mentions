@@ -505,10 +505,10 @@ PSYCH_JOURNALS = [
 ]
 
 PAPER_JOURNALS = [
-  "s2764918247", # COGENT EDUCATION
-  "s4210191100", # Frontline Learning Research
+  "S2764918247", # COGENT EDUCATION
+  "S4210191100", # Frontline Learning Research
   "S2738252563", # AERA Open
-  "s148277943", # SAGE Open
+  "S148277943", # SAGE Open
 ]
 
 
@@ -522,12 +522,12 @@ async def main(journal_id):
 
 # _cursor="IlsxNjgxOTQ4ODAwMDAwLCA5OS4wLCAxMywgJ2h0dHBzOi8vb3BlbmFsZXgub3JnL1c0MzY2Nzc1NjI0J10i"
 if __name__ == "__main__":
-  journal = PAPER_JOURNALS[3]
-  # vpn.rotate_vpn_server()
-  for work in get_journal_by_id([journal], 100, 2016):
-      insert_work_metadata_sql(work)
+  journal = PAPER_JOURNALS[0]
+  ## vpn.rotate_vpn_server()
+  #for work in get_journal_by_id([journal], 100, 2016):
+  #    insert_work_metadata_sql(work)
   #transform_url_by_journal(DE_JOURNALS[N])  
   #asyncio.run(main(journal))
-
-  # while grobid_batch(journal, 40, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS): ...
+  for journal in PAPER_JOURNALS:
+    while grobid_batch(journal, 40, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS): ...
 
