@@ -18,18 +18,20 @@ dbDisconnect(conn)
 
 journal_map <- tribble(
   ~short , ~id           , ~full_name                                        ,
-  "ds"   , "S4210217710" , "Deutsche Schule"                                 ,
-  "ze"   , "S40639335"   , "Zeitschrift für Erziehungswissenschaften"        ,
-  "zp"   , "S63113783"   , "Zeitschrift für Pädagogik"                       ,
+  #"ds"   , "S4210217710" , "Deutsche Schule"                                 ,
+  #"ze"   , "S40639335"   , "Zeitschrift für Erziehungswissenschaften"        ,
+  #"zp"   , "S63113783"   , "Zeitschrift für Pädagogik"                       ,
   "mdpi" , "S2738008561" , "Education Sciences"                              ,
-  "epr"  , "S187318745"  , "Educational Psychology Review"                   ,
-  "ethe" , "S4210201537" , "Educational Technology in Higher Education"      ,
-  "etre" , "S114840262"  , "Educational Technology Research and Development" ,
+  #"epr"  , "S187318745"  , "Educational Psychology Review"                   ,
+  #"ethe" , "S4210201537" , "Educational Technology in Higher Education"      ,
+  #"etre" , "S114840262"  , "Educational Technology Research and Development" ,
   "fe"   , "S2596526815" , "Frontiers in Education"                          ,
-  "esp"  , "S4306509262" , "Empirische Sonderpädagogik"                      ,
+  # "esp"  , "S4306509262" , "Empirische Sonderpädagogik"                      ,
   "cog"  , "S2764918247" , "COGENT EDUCATION"                                ,
   "flr"  , "S4210191100" , "Frontline Learning Research"                     ,
-  "aero" , "S2738252563" , "AERA Open"                                      
+  "aero" , "S2738252563" , "AERA Open"                                       ,
+  "sage" ,  "S148277943" , "SAGE Open",
+  "ijvet",  "S2736341217", "International Journal for Research in Vocational Education and Training",
 )
 
 reg <- journal_map |>
@@ -126,6 +128,8 @@ combined_df <- calc_combined_proportions(
   index_with_links
 )
 
+print(combined_df)
+
 fit <- lme(
   fixed = log(proportion_linked + 0.001) ~ publication_year,
   random = ~ publication_year | journal_long,
@@ -211,3 +215,6 @@ ggplot(
 ggsave("results/uebersicht_counts.png", width = 10, height = 8)
 
 # id, journal, year, has_osf, has_git, has_any_link, ()
+
+
+

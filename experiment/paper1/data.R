@@ -72,7 +72,8 @@ journal_map <- tribble(
   "esp", "S4306509262", "Empirische Sonderpädagogik",
   "cog", "S2764918247", "COGENT EDUCATION",
   "flr", "S4210191100", "Frontline Learning Research",
-  "aero", "S2738252563", "AERA Open"
+  "aero", "S2738252563", "AERA Open",
+  "sage" ,  "S148277943" , "SAGE Open"
 )
 
 reg <- journal_map |>
@@ -158,7 +159,7 @@ read_and_cache_paper <- function(openalex_id, tei_path, extract_links = TRUE) {
 }
 
 papers_to_process <- data |>
-  filter(journal_short %in% c("cog"), !is.na(tei_local_path), nzchar(tei_local_path)) |>
+  filter(journal_short %in% c("flr"), !is.na(tei_local_path), nzchar(tei_local_path)) |>
   select(openalex_id, tei_local_path)
 
 

@@ -545,7 +545,7 @@ PAPER_JOURNALS = [
 async def main(journal_id):
   while True:
     succ = await download_batch_by_journal_async(
-      journal_id, 1000, 50, False, which="FAILED",
+      journal_id, 1000, 50, False, which="PENDING",
     )
     if not succ:
       break
@@ -557,10 +557,10 @@ if __name__ == "__main__":
                       help="download or process?.")
   args = parser.parse_args()
 
-  journal = PAPER_JOURNALS[2]
+  journal = PAPER_JOURNALS[6]
   ## vpn.rotate_vpn_server()
-  # for work in get_journal_by_id([journal], 100, 2019, pdf=False):
-  #     insert_work_metadata_sql(work)
+  for work in get_journal_by_id([journal], 100, 2019, pdf=True):
+      insert_work_metadata_sql(work)
   if args.mode == "download":
     transform_url_by_journal(journal)  
     asyncio.run(main(journal))
