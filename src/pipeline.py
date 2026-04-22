@@ -2,6 +2,8 @@ from database import DB_PATH, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS
 from fetch import extract_pdf_locations, get_journal_by_id
 from process.download import PDFDownloader
 from process.grobid import GrobidHandler
+import argparse
+import os
 import vpn
 from typing import Any
 import sqlite3
@@ -177,7 +179,7 @@ async def download_batch_by_journal_async(
               print(f"\n[x] Error: {e}")
 
         with sqlite3.connect(DB_PATH) as conn:
-          print(f"Writing to database: {status_to_write}")
+          print(f"Writing to database: {status_to_write} at url {final_path} for {openalex_id}")
           cursor = conn.cursor()
           cursor.execute(
             """
@@ -350,6 +352,15 @@ def grobid_batch(
           """,
           (tei, pdf),
         )
+
+      for pdf in filenames:
+        if pdf not in output:
+          print(f"Grobid failed for {pdf}, marking as FAILED in database.")
+          cursor.execute(
+            "UPDATE works SET tei_process_status = 'FAILED' WHERE pdf_local_path = ?",
+            (pdf,),
+          )
+
     return True
 
   except Exception as e:
@@ -364,7 +375,7 @@ def transform_url_by_journal(journal_id: str):
     with sqlite3.connect(DB_PATH) as conn:
       cursor = conn.cursor()
       cursor.execute(
-        "SELECT openalex_id, oa_urls FROM works WHERE journal_id = ?",
+        "SELECT openalex_id, oa_urls, doi FROM works WHERE journal_id = ?",
         (journal_id.upper(),),
       )
       rows = cursor.fetchall()
@@ -376,17 +387,25 @@ def transform_url_by_journal(journal_id: str):
       print(f"Handling {len(rows)} rows")
 
       updated_count = 0
-      for openalex_id, oa_urls_raw in rows:
-        if not oa_urls_raw:
-          continue
-
-        data = json.loads(oa_urls_raw)
+      for openalex_id, oa_urls_raw, doi in rows:
+        data = json.loads(oa_urls_raw) if oa_urls_raw else {"pdf_links": []}
         links = data.get("pdf_links", [])
 
-        transformed_links = []
         changed = False
 
+        valid_links = [u for u in links if u is not None]
+        if not valid_links and doi and doi.startswith("https://doi.org/"):
+          doi_suffix = doi[16:]
+          new_url = f"https://journals.sagepub.com/doi/pdf/{doi_suffix}"
+          data["pdf_links"] = [new_url]
+          links = [new_url]
+          changed = True
+
+        transformed_links = []
         for url in links:
+          if url is None:
+            transformed_links.append(None)
+            continue
           pattern = r"index\.php\?eID=download&id_artikel=(ART\d+)&uid=(\w+)"
           match = re.search(pattern, url)
 
@@ -399,6 +418,14 @@ def transform_url_by_journal(journal_id: str):
               f"tx_p2waxmann_download[id_artikel]={art_id}&"
               f"tx_p2waxmann_download[uid]={uid}"
             )
+            transformed_links.append(new_url)
+            changed = True
+          elif "www.tandfonline.com" in url and "/doi/full/" in url:
+            new_url = url.replace("/doi/full/", "/doi/pdf/")
+            transformed_links.append(new_url)
+            changed = True
+          elif "journals.sagepub.com" in url and "/doi/" in url and "/doi/pdf/" not in url:
+            new_url = url.replace("/doi/", "/doi/pdf/")
             transformed_links.append(new_url)
             changed = True
           else:
@@ -509,25 +536,35 @@ PAPER_JOURNALS = [
   "S4210191100", # Frontline Learning Research
   "S2738252563", # AERA Open
   "S148277943", # SAGE Open
+  "S2738008561",  # Education Sciences (MDPI),  100%
+  "S2596526815",  # Frontiers in Education (Frontiers), 100%
+  "S2736341217", # International Journal for Research in Vocational Education and Training
 ]
 
 
 async def main(journal_id):
   while True:
     succ = await download_batch_by_journal_async(
-      journal_id, 1000, 50, False, which="PENDING",
+      journal_id, 1000, 50, False, which="FAILED",
     )
     if not succ:
       break
 
 # _cursor="IlsxNjgxOTQ4ODAwMDAwLCA5OS4wLCAxMywgJ2h0dHBzOi8vb3BlbmFsZXgub3JnL1c0MzY2Nzc1NjI0J10i"
 if __name__ == "__main__":
-  journal = PAPER_JOURNALS[0]
+  parser = argparse.ArgumentParser(description="")
+  parser.add_argument("--mode", choices=["download", "grobid"], default="download",
+                      help="download or process?.")
+  args = parser.parse_args()
+
+  journal = PAPER_JOURNALS[2]
   ## vpn.rotate_vpn_server()
-  #for work in get_journal_by_id([journal], 100, 2016):
-  #    insert_work_metadata_sql(work)
-  #transform_url_by_journal(DE_JOURNALS[N])  
-  #asyncio.run(main(journal))
-  for journal in PAPER_JOURNALS:
-    while grobid_batch(journal, 40, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS): ...
+  # for work in get_journal_by_id([journal], 100, 2019, pdf=False):
+  #     insert_work_metadata_sql(work)
+  if args.mode == "download":
+    transform_url_by_journal(journal)  
+    asyncio.run(main(journal))
+  elif args.mode == "grobid":
+    while grobid_batch(journal, 40, DOWNLOAD_DIR_PDFS, DOWNLOAD_DIR_TEIS):
+      pass
 

@@ -26,6 +26,8 @@ frontiersEdPapers.csv
 *.Rds
 !experiment/paper1/data/index.rds
 experiment/paper1/data_copy
+*.log
+*_backups
 
 ### PYTHON ###
 # Byte-compiled / optimized / DLL files

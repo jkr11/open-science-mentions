@@ -2,43 +2,77 @@ library(RSQLite)
 library(dplyr)
 library(tidyverse)
 library(stringr)
-library(here)
 library(tidyr)
 library(metacheck)
+library(parallel)
+
+db_index_path <- "../../db/index.merged.db"
 
 # Use this when running from toplevel
-setwd("experiment/paper1")
+setwd("~")
+setwd("/home/jere/projects/open-science-mentions/experiment/paper1")
 
 # TODO: save this as a csv
 # Run this everytime the db changes
-conn <- dbConnect(RSQLite::SQLite(), "../../db/index.db")
-query <- "SELECT * FROM works;"
+conn <- dbConnect(RSQLite::SQLite(), db_index_path)
+query <- "SELECT openalex_id, journal_id, tei_local_path FROM works;"
 data_all <- dbGetQuery(conn, query)
-dbDisconnect(conn)
-saveRDS(data_all, "data/index.Rds")
 
-data_all <- readRDS(file = "data/index.Rds")
+dbExecute(conn, "CREATE TABLE IF NOT EXISTS paper_objects (
+  openalex_id TEXT PRIMARY KEY,
+  object_path TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);")
+
+# aero_ids <- data |>
+#   filter(journal_short == "cog") |>
+#   pull(openalex_id)
+# 
+# if (length(aero_ids) > 0) {
+#   # Use parameterized query to avoid SQL injection and syntax errors
+#   id_list <- paste0("'", aero_ids, "'", collapse = ", ")
+#   
+#   query <- sprintf(
+#     "UPDATE paper_objects 
+#      SET object_path = '', 
+#          updated_at = '%s' 
+#      WHERE openalex_id IN (%s);", 
+#     as.character(Sys.time()), 
+#     id_list
+#   )
+#   
+#   dbExecute(conn, query)
+# }
+
+dbExecute(conn, "CREATE TABLE IF NOT EXISTS paper_links (
+  openalex_id TEXT PRIMARY KEY,
+  osf_links TEXT,
+  git_links TEXT,
+  updated_at TEXT NOT NULL
+);")
+paper_cache <- dbGetQuery(conn, "SELECT openalex_id, object_path FROM paper_objects;")
+dbDisconnect(conn)
 # some of the doi links were wrong in the db.
 data <- data_all |>
-  mutate(doi = str_remove(doi, "^https?://(dx\\.)?doi\\.org/")) |>
-  mutate(doi = str_remove(doi, "^https?://(dx\\.)?doi\\.org")) |>
+  # mutate(doi = str_remove(doi, "^https?://(dx\\.)?doi\\.org/")) |>
+  # mutate(doi = str_remove(doi, "^https?://(dx\\.)?doi\\.org")) |>
   mutate(tei_id = tei_local_path) |>
-  mutate(tei_local_path = paste0("../../db/teis/", tei_local_path))
+  mutate(tei_local_path = if_else(str_starts(tei_local_path, "/"), tei_local_path, paste0("../../db/teis/", tei_local_path)))
 
 journal_map <- tribble(
-  ~short , ~id           , ~full_name                                        ,
-  "ds"   , "S4210217710" , "Deutsche Schule"                                 ,
-  "ze"   , "S40639335"   , "Zeitschrift für Erziehungswissenschaften"        ,
-  "zp"   , "S63113783"   , "Zeitschrift für Pädagogik"                       ,
-  "mdpi" , "S2738008561" , "Education Sciences"                              ,
-  "epr"  , "S187318745"  , "Educational Psychology Review"                   ,
-  "ethe" , "S4210201537" , "Educational Technology in Higher Education"      ,
-  "etre" , "S114840262"  , "Educational Technology Research and Development" ,
-  "fe"   , "S2596526815" , "Frontiers in Education"                          ,
-  "esp"  , "S4306509262" , "Empirische Sonderpädagogik"                      ,
-  "cog"  , "S2764918247" , "COGENT EDUCATION"                                ,
-  "flr"  , "S4210191100" , "Frontline Learning Research"                     ,
-  "aero" , "S2738252563" , "AERA Open"                                      
+  ~short, ~id, ~full_name,
+  "ds", "S4210217710", "Deutsche Schule",
+  "ze", "S40639335", "Zeitschrift für Erziehungswissenschaften",
+  "zp", "S63113783", "Zeitschrift für Pädagogik",
+  "mdpi", "S2738008561", "Education Sciences",
+  "epr", "S187318745", "Educational Psychology Review",
+  "ethe", "S4210201537", "Educational Technology in Higher Education",
+  "etre", "S114840262", "Educational Technology Research and Development",
+  "fe", "S2596526815", "Frontiers in Education",
+  "esp", "S4306509262", "Empirische Sonderpädagogik",
+  "cog", "S2764918247", "COGENT EDUCATION",
+  "flr", "S4210191100", "Frontline Learning Research",
+  "aero", "S2738252563", "AERA Open"
 )
 
 reg <- journal_map |>
@@ -46,50 +80,124 @@ reg <- journal_map |>
 
 data <- data |> left_join(reg, by = c("journal_id" = "id"))
 
-journal_batches <- data |>
-  filter(journal_short %in% c("cog", "flr", "aero")) |>
-  group_split(journal_id)
+data <- data |> left_join(paper_cache, by = "openalex_id")
 
-processed_batches <- map(journal_batches, function(batch_data) {
-  current_id <- unique(batch_data$journal_id)
-  save_path <- paste0("data/journal_batches/data_", current_id, ".rds")
+cache_root <- "data/paper_objs"
+dir.create(cache_root, recursive = TRUE, showWarnings = FALSE)
 
-  #if (file.exists(save_path)) {
-  #  return(readRDS(save_path))
-  #}
+read_and_cache_paper <- function(openalex_id, tei_path, extract_links = TRUE) {
+  obj_path <- file.path(cache_root, paste0(openalex_id, ".Rds"))
 
-  processed_batch <- batch_data |>
-    mutate(
-      paper_obj = map(
-        tei_local_path,
-        possibly(metacheck::read, otherwise = NULL)
-      )
+  paper_obj <- NULL
+  object_path <- NA_character_
+  osf_text <- NA_character_
+  git_text <- NA_character_
+
+  path_string <- if (!is.null(tei_path)) trimws(tei_path) else ""
+  is_missing_path <- function(path) {
+    is.na(path) || !nzchar(path) || path %in% c("NA", "NULL", "na", "null", "")
+  }
+
+  if (file.exists(obj_path)) {
+    object_path <- obj_path
+    message(sprintf("SKIP: %s - cache already exists at %s", openalex_id, obj_path))
+
+    if (extract_links) {
+      paper_obj <- readRDS(obj_path)
+    }
+  } else if (is_missing_path(path_string)) {
+    message(sprintf("SKIP: %s - missing or invalid TEI path (%s)", openalex_id, path_string))
+  } else {
+    if (!file.exists(path_string)) {
+      message(sprintf("FAIL: %s - TEI file not found at %s", openalex_id, path_string))
+      return(list(openalex_id = openalex_id, object_path = NA_character_))
+    }
+
+    paper_obj <- tryCatch(
+      {
+        metacheck::read(path_string)
+      },
+      error = function(e) {
+        message(sprintf("FAIL: %s - parsing error: %s", openalex_id, e$message))
+        NULL
+      }
     )
-  saveRDS(processed_batch, file = save_path)
-  return(processed_batch)
-})
-print(processed_batches)
-batches <- bind_rows(processed_batches) |> select(openalex_id, paper_obj)
 
-data <- data |>
-  left_join(batches, by = "openalex_id")
+    if (!is.null(paper_obj)) {
+      saveRDS(paper_obj, obj_path)
+      if (file.exists(obj_path)) {
+        object_path <- obj_path
+        message(sprintf("SUCCESS: %s - saved %s", openalex_id, obj_path))
+      } else {
+        message(sprintf("FAIL: %s - read succeeded but file was not written: %s", openalex_id, obj_path))
+        paper_obj <- NULL
+      }
+    }
+  }
 
-#' Counts how many papers were actually processed. Note this only works if you have the full database.
-download_statistics <- function(id, stats_df) {
-  data_loc <- data_all %>%
-    filter(journal_id == id, publication_year != 2026)
-  pstats <- data_loc %>%
-    summarise(
-      total_records = n(),
-      pdfs_downloaded = sum(pdf_download_status == "DONE", na.rm = TRUE),
-      pdf_download_rate = pdfs_downloaded / total_records,
+  if (extract_links && !is.null(paper_obj)) {
+    osf_links <- tryCatch(metacheck::osf_links(paper_obj), error = function(e) NULL)
+    git_links <- tryCatch(metacheck::github_links(paper_obj), error = function(e) NULL)
 
-      tei_processed = sum(tei_process_status == "DONE", na.rm = TRUE),
-      tei_success_rate = tei_processed / total_records,
+    if (!is.null(osf_links) && nrow(osf_links) > 0) {
+      osf_text <- paste(osf_links$text, collapse = "||")
+      print(osf_text)
+    }
+    if (!is.null(git_links) && nrow(git_links) > 0) {
+      git_text <- paste(git_links$text, collapse = "||")
+      print(git_text)
+    }
+  }
 
-      actually_handled = nrow(stats_df)
-    )
-  pstats
+  return(list(
+    openalex_id = openalex_id,
+    object_path = object_path,
+    osf_links = osf_text,
+    git_links = git_text
+  ))
 }
 
-saveRDS(data, file = "data/data_with_journals.rds")
+papers_to_process <- data |>
+  filter(journal_short %in% c("cog"), !is.na(tei_local_path), nzchar(tei_local_path)) |>
+  select(openalex_id, tei_local_path)
+
+
+if (nrow(papers_to_process) > 0) {
+  n_cores <- min(32L, detectCores())
+  chunk_size <- n_cores
+  pb <- txtProgressBar(min = 0, max = nrow(papers_to_process), style = 3)
+  processed <- 0
+
+  conn <- dbConnect(RSQLite::SQLite(), db_index_path)
+  for (start in seq(1, nrow(papers_to_process), by = chunk_size)) {
+    end <- min(start + chunk_size - 1, nrow(papers_to_process))
+    chunk <- papers_to_process[start:end, ]
+
+    chunk_results <- mclapply(seq_len(nrow(chunk)), function(i) {
+      row <- chunk[i, ]
+      read_and_cache_paper(row$openalex_id, row$tei_local_path)
+    }, mc.cores = min(n_cores, nrow(chunk)), mc.preschedule = FALSE)
+
+    for (result in chunk_results) {
+      if (is.na(result$object_path) || !nzchar(result$object_path) || !file.exists(result$object_path)) {
+        message(sprintf("DB SKIP: %s - no valid object path", result$openalex_id))
+        next
+      }
+      dbExecute(conn, "INSERT OR REPLACE INTO paper_objects (openalex_id, object_path, updated_at) VALUES (?, ?, datetime('now'))",
+        params = list(result$openalex_id, result$object_path)
+      )
+      dbExecute(conn, "INSERT OR REPLACE INTO paper_links (openalex_id, osf_links, git_links, updated_at) VALUES (?, ?, ?, datetime('now'))",
+        params = list(result$openalex_id, result$osf_links, result$git_links)
+      )
+    }
+
+    processed <- processed + nrow(chunk)
+    setTxtProgressBar(pb, processed)
+  }
+  close(pb)
+  dbDisconnect(conn)
+}
+
+print(papers_to_process)
+
+

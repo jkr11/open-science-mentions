@@ -10,7 +10,7 @@ if TEST:
 else:
   DB_DIR = os.path.join(BASE_DIR, "db")
 
-DB_PATH = os.path.join(DB_DIR, "index.db")
+DB_PATH = os.path.join(DB_DIR, "index.merged.db")
 
 DOWNLOAD_DIR_PDFS = os.path.join(DB_DIR, "pdfs")
 DOWNLOAD_DIR_TEIS = os.path.join(DB_DIR, "teis")

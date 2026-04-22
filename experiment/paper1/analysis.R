@@ -1,6 +1,7 @@
+library(DBI)
+library(RSQLite)
 library(tidyverse)
 library(ggplot2)
-library(metacheck)
 library(purrr)
 library(dplyr)
 library(readr)
@@ -10,100 +11,74 @@ library(scales)
 
 setwd("experiment/paper1")
 
-index <- readRDS(file = "data/data_with_journals.rds")
+conn <- dbConnect(RSQLite::SQLite(), "../../db/index.merged.db")
+works <- dbGetQuery(conn, "SELECT * FROM works")
+paper_links <- dbGetQuery(conn, "SELECT openalex_id, osf_links, git_links FROM paper_links")
+dbDisconnect(conn)
 
-# Add in links from github and osf
-index_with_links <- index |>
-  mutate(
-    osf_links_obj = map(
-      paper_obj,
-      possibly(~ metacheck::osf_links(.x), otherwise = NULL)
-    ),
-    git_links_obj = map(
-      paper_obj,
-      possibly(~ metacheck::github_links(.x), otherwise = NULL)
-    ),
-    has_osf = map_lgl(osf_links_obj, ~ !is.null(.x) && nrow(.x) > 0),
-    has_git = map_lgl(git_links_obj, ~ !is.null(.x) && nrow(.x) > 0)
-  )
+journal_map <- tribble(
+  ~short , ~id           , ~full_name                                        ,
+  "ds"   , "S4210217710" , "Deutsche Schule"                                 ,
+  "ze"   , "S40639335"   , "Zeitschrift für Erziehungswissenschaften"        ,
+  "zp"   , "S63113783"   , "Zeitschrift für Pädagogik"                       ,
+  "mdpi" , "S2738008561" , "Education Sciences"                              ,
+  "epr"  , "S187318745"  , "Educational Psychology Review"                   ,
+  "ethe" , "S4210201537" , "Educational Technology in Higher Education"      ,
+  "etre" , "S114840262"  , "Educational Technology Research and Development" ,
+  "fe"   , "S2596526815" , "Frontiers in Education"                          ,
+  "esp"  , "S4306509262" , "Empirische Sonderpädagogik"                      ,
+  "cog"  , "S2764918247" , "COGENT EDUCATION"                                ,
+  "flr"  , "S4210191100" , "Frontline Learning Research"                     ,
+  "aero" , "S2738252563" , "AERA Open"                                      
+)
 
+reg <- journal_map |>
+  select(id, journal_short = short, journal_long = full_name)
 
-scrub_links <- function(lt) {
-  if (is.null(lt) || (is.data.frame(lt) && nrow(lt) == 0)) {
+parse_link_column <- function(link_text) {
+  if (is.na(link_text) || !nzchar(link_text)) {
     return(character(0))
   }
-
-  lt %>%
-    pull(text) %>%
-    str_remove_all("\\s+") %>%
-    tolower() %>%
-    unique()
+  strsplit(link_text, "\\|\\|")[[1]]
 }
 
-index_with_links <- index_with_links |>
+index_with_links <- works |>
+  left_join(reg, by = c("journal_id" = "id")) |>
+  left_join(paper_links, by = "openalex_id") |>
   mutate(
-    all_osf_links = map(osf_links_obj, scrub_links),
-    all_git_links = map(git_links_obj, scrub_links),
+    osf_links_raw = map(osf_links, parse_link_column),
+    git_links_raw = map(git_links, parse_link_column),
+    has_osf = map_lgl(osf_links_raw, ~ length(.x) > 0),
+    has_git = map_lgl(git_links_raw, ~ length(.x) > 0)
+  ) |>
+  mutate(
+    all_osf_links = map_chr(osf_links_raw, ~ paste(.x, collapse = "; ")),
+    all_git_links = map_chr(git_links_raw, ~ paste(.x, collapse = "; ")),
     has_any_link = has_osf | has_git
   )
 
-index_with_links <- index_with_links |>
-  filter(journal_short != "mdpi") |>
-  filter(publication_year > 2016)
+print(index_with_links %>% count(journal_short, publication_year, has_any_link))
 
-clean_links <- function(link_column) {
-  map_chr(
-    link_column,
-    ~ {
-      .x |>
-        str_trim() |>
-        str_to_lower() |>
-        str_remove("^https?://") |>
-        str_remove_all("/+$") |>
-        unique() |>
-        str_c("https://", .) |>
-        paste(collapse = "; ")
-    }
-  )
+# Prepare links for analysis - split by || delimiter and clean
+clean_links <- function(link_text) {
+  if (is.na(link_text) || !nzchar(link_text)) {
+    return(NA_character_)
+  }
+  link_text |>
+    str_trim() |>
+    str_to_lower() |>
+    str_remove("^https?://") |>
+    str_remove_all("/+$") |>
+    unique() |>
+    paste(collapse = "; ")
 }
 
-safe_retrieve <- possibly(metacheck::osf_retrieve, otherwise = NULL)
-
-# OSF Token is needed here
-# TODO: api doesnt fully complete here, rerun this where Failed.
 index_with_links <- index_with_links |>
   mutate(
-    info = map2(
-      all_osf_links,
-      has_osf,
-      ~ if (.y) safe_retrieve(.x, recursive = TRUE) else NULL
-    )
+    all_osf_links_clean = map_chr(all_osf_links, clean_links),
+    all_git_links_clean = map_chr(all_git_links, clean_links)
   )
 
-index_with_links <- index_with_links |>
-  mutate(
-    temp_content = map(
-      info,
-      function(x) {
-        if (is.null(x) || identical(x, "Fail")) {
-          return(tibble(has_data = FALSE, has_code = FALSE, has_supp = FALSE))
-        }
-        if (!is.data.frame(x) || nrow(x) == 0) {
-          return(tibble(has_data = FALSE, has_code = FALSE, has_supp = FALSE))
-        }
-        all_types <- tolower(paste(
-          tidyr::replace_na(x$filetype, ""),
-          collapse = " "
-        ))
-        tibble(
-          has_data = str_detect(all_types, "data"),
-          has_code = str_detect(all_types, "code|syntax|script"),
-          has_supp = str_detect(all_types, "text|video|web")
-        )
-      }
-    )
-  ) |>
-  unnest(temp_content)
 
 
 write_clean_links <- function(stats, name) {
@@ -126,7 +101,7 @@ theme_set(
 calc_combined_proportions <- function(master_df) {
   master_df |>
     filter(publication_year != 2026) |>
-    filter(publication_year != 2016) |>
+    filter(publication_year > 2019) |>
     mutate(
       has_any_link = has_osf | has_git
     ) |>
@@ -234,3 +209,5 @@ ggplot(
   )
 
 ggsave("results/uebersicht_counts.png", width = 10, height = 8)
+
+# id, journal, year, has_osf, has_git, has_any_link, ()
