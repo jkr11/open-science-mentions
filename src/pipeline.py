@@ -539,6 +539,7 @@ PAPER_JOURNALS = [
   "S2738008561",  # Education Sciences (MDPI),  100%
   "S2596526815",  # Frontiers in Education (Frontiers), 100%
   "S2736341217", # International Journal for Research in Vocational Education and Training
+  "S4210201537",  # International Journal of Educational Technology in Higher Education (Springer), 99.8%
 ]
 
 
@@ -550,17 +551,17 @@ async def main(journal_id):
     if not succ:
       break
 
-# _cursor="IlsxNjgxOTQ4ODAwMDAwLCA5OS4wLCAxMywgJ2h0dHBzOi8vb3BlbmFsZXgub3JnL1c0MzY2Nzc1NjI0J10i"
+# _cursor="IlsxNjgxOTQ4ODAwMDAwLCA5OS4wLCAxMywgJ2h0dHBzOi8vb3BlbmFsZXgub3JnL1c0MzY2Nzc1NjI0J10i" # some old cursors i dont think this is necessary but check
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description="")
   parser.add_argument("--mode", choices=["download", "grobid"], default="download",
                       help="download or process?.")
   args = parser.parse_args()
 
-  journal = PAPER_JOURNALS[6]
+  journal = PAPER_JOURNALS[-1]
   ## vpn.rotate_vpn_server()
-  for work in get_journal_by_id([journal], 100, 2019, pdf=True):
-      insert_work_metadata_sql(work)
+  # for work in get_journal_by_id([journal], 100, 2019, pdf=True):
+  #     insert_work_metadata_sql(work)
   if args.mode == "download":
     transform_url_by_journal(journal)  
     asyncio.run(main(journal))

@@ -61,19 +61,20 @@ data <- data_all |>
 
 journal_map <- tribble(
   ~short, ~id, ~full_name,
-  "ds", "S4210217710", "Deutsche Schule",
-  "ze", "S40639335", "Zeitschrift für Erziehungswissenschaften",
-  "zp", "S63113783", "Zeitschrift für Pädagogik",
+  # "ds", "S4210217710", "Deutsche Schule",
+  # "ze", "S40639335", "Zeitschrift für Erziehungswissenschaften",
+  # "zp", "S63113783", "Zeitschrift für Pädagogik",
   "mdpi", "S2738008561", "Education Sciences",
-  "epr", "S187318745", "Educational Psychology Review",
-  "ethe", "S4210201537", "Educational Technology in Higher Education",
-  "etre", "S114840262", "Educational Technology Research and Development",
+  # "epr", "S187318745", "Educational Psychology Review",
+  # "ethe", "S4210201537", "Educational Technology in Higher Education",
+  # "etre", "S114840262", "Educational Technology Research and Development",
   "fe", "S2596526815", "Frontiers in Education",
-  "esp", "S4306509262", "Empirische Sonderpädagogik",
+  # "esp", "S4306509262", "Empirische Sonderpädagogik",
   "cog", "S2764918247", "COGENT EDUCATION",
   "flr", "S4210191100", "Frontline Learning Research",
   "aero", "S2738252563", "AERA Open",
-  "sage" ,  "S148277943" , "SAGE Open"
+  "sage" ,  "S148277943" , "SAGE Open",
+  "ijet", "S4210201537",  "International Journal of Educational Technology in Higher Education (Springer), 99.8%",
 )
 
 reg <- journal_map |>
@@ -159,7 +160,7 @@ read_and_cache_paper <- function(openalex_id, tei_path, extract_links = TRUE) {
 }
 
 papers_to_process <- data |>
-  filter(journal_short %in% c("flr"), !is.na(tei_local_path), nzchar(tei_local_path)) |>
+  filter(journal_short %in% c("ijet"), !is.na(tei_local_path), nzchar(tei_local_path)) |>
   select(openalex_id, tei_local_path)
 
 
