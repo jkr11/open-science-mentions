@@ -14,7 +14,7 @@ library(jsonlite)
 library(progress)
 library(httpgd)
 
-setwd("experiment/paper1")
+#setwd("experiment/paper1")
 
 get_authors <- function(openalex_id) {
   if (is.na(openalex_id) || !nzchar(openalex_id)) {
@@ -107,7 +107,7 @@ journal_map <- tribble(
   "fe", "S2596526815", "Frontiers in Education",
   # "esp", "S4306509262", "Empirische Sonderpädagogik",
   "cog", "S2764918247", "COGENT EDUCATION",
-  ## "flr", "S4210191100", "Frontline Learning Research",
+  "flr", "S4210191100", "Frontline Learning Research",
   "aero", "S2738252563", "AERA Open",
   "sage" ,  "S148277943" , "SAGE Open",
   "ijet", "S4210201537",  "International Journal of Educational Technology in Higher Education",
