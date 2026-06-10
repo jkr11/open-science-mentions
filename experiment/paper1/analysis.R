@@ -21,21 +21,31 @@ get_authors <- function(openalex_id) {
     return(NA_character_)
   }
   url <- paste0("https://api.openalex.org/works/", openalex_id)
-  tryCatch({
-    response <- GET(url, timeout(10))  # 10 second timeout
-    if (status_code(response) == 200 && http_type(response) == "application/json") {
-      data <- suppressWarnings(fromJSON(content(response, "text", encoding = "UTF-8")))
-      if (!is.null(data$authorships) && length(data$authorships) > 0) {
-        authors <- data$authorships$author$display_name
-        if (length(authors) > 0 && all(is.character(authors))) {
-          return(paste(authors, collapse = "; "))
+  tryCatch(
+    {
+      response <- GET(url, timeout(10)) # 10 second timeout
+      if (
+        status_code(response) == 200 &&
+          http_type(response) == "application/json"
+      ) {
+        data <- suppressWarnings(fromJSON(content(
+          response,
+          "text",
+          encoding = "UTF-8"
+        )))
+        if (!is.null(data$authorships) && length(data$authorships) > 0) {
+          authors <- data$authorships$author$display_name
+          if (length(authors) > 0 && all(is.character(authors))) {
+            return(paste(authors, collapse = "; "))
+          }
         }
       }
+      return(NA_character_)
+    },
+    error = function(e) {
+      return(NA_character_)
     }
-    return(NA_character_)
-  }, error = function(e) {
-    return(NA_character_)
-  })
+  )
 }
 
 get_title <- function(openalex_id) {
@@ -43,74 +53,87 @@ get_title <- function(openalex_id) {
     return(NA_character_)
   }
   url <- paste0("https://api.openalex.org/works/", openalex_id)
-  tryCatch({
-    response <- GET(url, timeout(10))
-    if (status_code(response) == 200 && http_type(response) == "application/json") {
-      data <- suppressWarnings(fromJSON(content(response, "text", encoding = "UTF-8")))
-      if (!is.null(data$title) && is.character(data$title)) {
-        return(data$title)
+  tryCatch(
+    {
+      response <- GET(url, timeout(10))
+      if (
+        status_code(response) == 200 &&
+          http_type(response) == "application/json"
+      ) {
+        data <- suppressWarnings(fromJSON(content(
+          response,
+          "text",
+          encoding = "UTF-8"
+        )))
+        if (!is.null(data$title) && is.character(data$title)) {
+          return(data$title)
+        }
       }
+      return(NA_character_)
+    },
+    error = function(e) {
+      return(NA_character_)
     }
-    return(NA_character_)
-  }, error = function(e) {
-    return(NA_character_)
-  })
+  )
 }
 
 format_osf_links <- function(link_text) {
   if (is.na(link_text) || !nzchar(link_text)) {
     return(NA_character_)
   }
-  
+
   # Split by "; " delimiter
   links <- strsplit(link_text, "\\; ")[[1]]
-  
+
   # Format each link
   formatted_links <- sapply(links, function(link) {
     link <- str_trim(link)
-    
+
     # Remove spaces from "view only" to make "viewonly"
     link <- str_replace_all(link, " only", "only")
     link <- str_replace_all(link, "view  ", "view")
     link <- str_replace_all(link, " ", "")
-    
+
     # Convert to lowercase
     link <- str_to_lower(link)
-    
+
     # Add https:// prefix if missing
     if (!str_starts(link, "https://") && !str_starts(link, "http://")) {
       link <- paste0("https://", link)
     }
-    
+
     return(link)
   })
-  
+
   # Join back with "; "
   return(paste(formatted_links, collapse = "; "))
 }
 
 conn <- dbConnect(RSQLite::SQLite(), "../../db/index.merged.db")
 works <- dbGetQuery(conn, "SELECT * FROM works")
-paper_links <- dbGetQuery(conn, "SELECT openalex_id, osf_links, git_links FROM paper_links")
+paper_links <- dbGetQuery(
+  conn,
+  "SELECT openalex_id, osf_links, git_links FROM paper_links"
+)
 dbDisconnect(conn)
 
 
 journal_map <- tribble(
-  ~short, ~id, ~full_name,
+  ~short , ~id           , ~full_name                                                            ,
   # "ds", "S4210217710", "Deutsche Schule",
   # "ze", "S40639335", "Zeitschrift für Erziehungswissenschaften",
   # "zp", "S63113783", "Zeitschrift für Pädagogik",
-  "mdpi", "S2738008561", "Education Sciences",
+  "mdpi" , "S2738008561" , "Education Sciences"                                                  ,
   # "epr", "S187318745", "Educational Psychology Review",
   # "ethe", "S4210201537", "Educational Technology in Higher Education",
   # "etre", "S114840262", "Educational Technology Research and Development",
-  "fe", "S2596526815", "Frontiers in Education",
+  "fe"   , "S2596526815" , "Frontiers in Education"                                              ,
   # "esp", "S4306509262", "Empirische Sonderpädagogik",
-  "cog", "S2764918247", "COGENT EDUCATION",
-  "flr", "S4210191100", "Frontline Learning Research",
-  "aero", "S2738252563", "AERA Open",
-  "sage" ,  "S148277943" , "SAGE Open",
-  "ijet", "S4210201537",  "International Journal of Educational Technology in Higher Education",
+  "cog"  , "S2764918247" , "COGENT EDUCATION"                                                    ,
+  "flr"  , "S4210191100" , "Frontline Learning Research"                                         ,
+  "aero" , "S2738252563" , "AERA Open"                                                           ,
+  "sage" , "S148277943"  , "SAGE Open"                                                           ,
+  "ijet" , "S4210201537" , "International Journal of Educational Technology in Higher Education" ,
 )
 
 
@@ -209,7 +232,8 @@ combined_df <- calc_combined_proportions(
 
 print(combined_df)
 
-combined_df <- combined_df %>% mutate(publication_year_centered = publication_year - 2019)
+combined_df <- combined_df %>%
+  mutate(publication_year_centered = publication_year - 2019)
 
 fit <- lme(
   fixed = log(proportion_linked + 0.001) ~ publication_year,
@@ -303,7 +327,10 @@ calc_link_type_proportions <- function(master_df, link_type) {
     group_by(journal_long, publication_year) |>
     summarise(
       total_papers = n_distinct(openalex_id),
-      linked_papers = sum(if(link_type == "osf") has_osf else has_git, na.rm = TRUE),
+      linked_papers = sum(
+        if (link_type == "osf") has_osf else has_git,
+        na.rm = TRUE
+      ),
       proportion_linked = linked_papers / total_papers,
       .groups = "drop"
     ) |>
@@ -317,16 +344,40 @@ calc_link_type_proportions <- function(master_df, link_type) {
 osf_df <- calc_link_type_proportions(index_with_links, "osf")
 git_df <- calc_link_type_proportions(index_with_links, "git")
 
-ggplot(osf_df, aes(x = publication_year, y = proportion_linked, color = str_wrap(FigureName, 20))) +
+ggplot(
+  osf_df,
+  aes(
+    x = publication_year,
+    y = proportion_linked,
+    color = str_wrap(FigureName, 20)
+  )
+) +
   geom_line(linewidth = 1) +
   geom_point() +
-  labs(title = "Proportion with OSF Links", x = "Year", y = "Proportion", color = "Journal") +
+  labs(
+    title = "Proportion with OSF Links",
+    x = "Year",
+    y = "Proportion",
+    color = "Journal"
+  ) +
   theme(legend.position = "bottom")
 
-ggplot(git_df, aes(x = publication_year, y = proportion_linked, color = str_wrap(FigureName, 20))) +
+ggplot(
+  git_df,
+  aes(
+    x = publication_year,
+    y = proportion_linked,
+    color = str_wrap(FigureName, 20)
+  )
+) +
   geom_line(linewidth = 1) +
   geom_point() +
-  labs(title = "Proportion with Git Links", x = "Year", y = "Proportion", color = "Journal") +
+  labs(
+    title = "Proportion with Git Links",
+    x = "Year",
+    y = "Proportion",
+    color = "Journal"
+  ) +
   theme(legend.position = "bottom")
 
 
@@ -340,28 +391,56 @@ write.csv(index_with_links, "results/all_papers_data.csv")
 
 subset_df <- index_with_links %>%
   filter(has_any_link) %>%
-  select(openalex_id, osf_links, git_links, journal_name, journal_id, has_git, has_osf, has_any_link)
-p <- progress_bar$new(total = 2 * nrow(subset_df), format = "Fetching authors & titles [:bar] :percent :eta")
+  select(
+    openalex_id,
+    osf_links,
+    git_links,
+    journal_name,
+    journal_id,
+    has_git,
+    has_osf,
+    has_any_link
+  )
+p <- progress_bar$new(
+  total = 2 * nrow(subset_df),
+  format = "Fetching authors & titles [:bar] :percent :eta"
+)
 subset_df <- subset_df %>%
   mutate(
-    author = map_chr(openalex_id, ~ {p$tick(); get_authors(.x)} ),
-    title = map_chr(openalex_id, ~ {p$tick(); get_title(.x)} ),
+    author = map_chr(
+      openalex_id,
+      ~ {
+        p$tick()
+        get_authors(.x)
+      }
+    ),
+    title = map_chr(
+      openalex_id,
+      ~ {
+        p$tick()
+        get_title(.x)
+      }
+    ),
   )
 subset_df <- subset_df %>%
   mutate(osf_links = map_chr(osf_links, format_osf_links))
 write.csv(subset_df, "results/papers_subset.csv")
 
 library(brms)
+model <- brm(
+  unique_linked_papers | trials(total_papers) ~ publication_year_centered +
+    (1 | journal_long),
+  data = combined_df,
+  family = binomial()
+)
+#unique_linked_papers | trials(total_papers) ~
+#  publication_year_centered +
+#  (publication_year_centered | journal_long)
 
-model <- brm(unique_linked_papers | trials(total_papers) ~ publication_year_centered + (1 | journal_long),
-data = combined_df,
-family = binomial())
 summary(model)
 plot(model)
 pp_check(model)
 post <- posterior_samples(model)
-ggplot(post, aes(x = b_publication_year_centered)) + geom_density() + labs(title = "Posterior for Year Effect (Centered)")
-
-
-
-
+ggplot(post, aes(x = b_publication_year_centered)) +
+  geom_density() +
+  labs(title = "Posterior for Year Effect (Centered)")

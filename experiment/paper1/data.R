@@ -6,75 +6,85 @@ library(tidyr)
 library(metacheck)
 library(parallel)
 
-db_index_path <- "../../db/index.merged.db"
+db_index_path <- "db/index.merged.db"
 
-# Use this when running from toplevel
-setwd("~")
-setwd("/home/jere/projects/open-science-mentions/experiment/paper1")
 
-# TODO: save this as a csv
-# Run this everytime the db changes
 conn <- dbConnect(RSQLite::SQLite(), db_index_path)
 query <- "SELECT openalex_id, journal_id, tei_local_path FROM works;"
 data_all <- dbGetQuery(conn, query)
 
-dbExecute(conn, "CREATE TABLE IF NOT EXISTS paper_objects (
+dbExecute(
+  conn,
+  "CREATE TABLE IF NOT EXISTS paper_objects (
   openalex_id TEXT PRIMARY KEY,
   object_path TEXT NOT NULL,
   updated_at TEXT NOT NULL
-);")
+);"
+)
 
 # aero_ids <- data |>
 #   filter(journal_short == "cog") |>
 #   pull(openalex_id)
-# 
+#
 # if (length(aero_ids) > 0) {
 #   # Use parameterized query to avoid SQL injection and syntax errors
 #   id_list <- paste0("'", aero_ids, "'", collapse = ", ")
-#   
+#
 #   query <- sprintf(
-#     "UPDATE paper_objects 
-#      SET object_path = '', 
-#          updated_at = '%s' 
-#      WHERE openalex_id IN (%s);", 
-#     as.character(Sys.time()), 
+#     "UPDATE paper_objects
+#      SET object_path = '',
+#          updated_at = '%s'
+#      WHERE openalex_id IN (%s);",
+#     as.character(Sys.time()),
 #     id_list
 #   )
-#   
+#
 #   dbExecute(conn, query)
 # }
 
-dbExecute(conn, "CREATE TABLE IF NOT EXISTS paper_links (
+dbExecute(
+  conn,
+  "CREATE TABLE IF NOT EXISTS paper_links (
   openalex_id TEXT PRIMARY KEY,
   osf_links TEXT,
   git_links TEXT,
   updated_at TEXT NOT NULL
-);")
-paper_cache <- dbGetQuery(conn, "SELECT openalex_id, object_path FROM paper_objects;")
+);"
+)
+paper_cache <- dbGetQuery(
+  conn,
+  "SELECT openalex_id, object_path FROM paper_objects;"
+)
 dbDisconnect(conn)
 # some of the doi links were wrong in the db.
 data <- data_all |>
   # mutate(doi = str_remove(doi, "^https?://(dx\\.)?doi\\.org/")) |>
   # mutate(doi = str_remove(doi, "^https?://(dx\\.)?doi\\.org")) |>
   mutate(tei_id = tei_local_path) |>
-  mutate(tei_local_path = if_else(str_starts(tei_local_path, "/"), tei_local_path, paste0("../../db/teis/", tei_local_path)))
+  mutate(
+    tei_local_path = if_else(
+      str_starts(tei_local_path, "/"),
+      tei_local_path,
+      paste0("../../db/teis/", tei_local_path)
+    )
+  )
 
 journal_map <- tribble(
-  ~short, ~id, ~full_name,
+  ~short , ~id           , ~full_name                                                                              ,
   # "ds", "S4210217710", "Deutsche Schule",
   # "ze", "S40639335", "Zeitschrift für Erziehungswissenschaften",
   # "zp", "S63113783", "Zeitschrift für Pädagogik",
-  "mdpi", "S2738008561", "Education Sciences",
+  "mdpi" , "S2738008561" , "Education Sciences"                                                                    ,
   # "epr", "S187318745", "Educational Psychology Review",
   # "ethe", "S4210201537", "Educational Technology in Higher Education",
   # "etre", "S114840262", "Educational Technology Research and Development",
-  "fe", "S2596526815", "Frontiers in Education",
+  "fe"   , "S2596526815" , "Frontiers in Education"                                                                ,
   # "esp", "S4306509262", "Empirische Sonderpädagogik",
-  "cog", "S2764918247", "COGENT EDUCATION",
-  "flr", "S4210191100", "Frontline Learning Research",
-  "aero", "S2738252563", "AERA Open",
-  "sage" ,  "S148277943" , "SAGE Open",
-  "ijet", "S4210201537",  "International Journal of Educational Technology in Higher Education (Springer), 99.8%",
+  "cog"  , "S2764918247" , "COGENT EDUCATION"                                                                      ,
+  "flr"  , "S4210191100" , "Frontline Learning Research"                                                           ,
+  "aero" , "S2738252563" , "AERA Open"                                                                             ,
+  "sage" , "S148277943"  , "SAGE Open"                                                                             ,
+  "ijet" , "S4210201537" , "International Journal of Educational Technology in Higher Education (Springer), 99.8%" ,
 )
 
 reg <- journal_map |>
@@ -102,16 +112,28 @@ read_and_cache_paper <- function(openalex_id, tei_path, extract_links = TRUE) {
 
   if (file.exists(obj_path)) {
     object_path <- obj_path
-    message(sprintf("SKIP: %s - cache already exists at %s", openalex_id, obj_path))
+    message(sprintf(
+      "SKIP: %s - cache already exists at %s",
+      openalex_id,
+      obj_path
+    ))
 
     if (extract_links) {
       paper_obj <- readRDS(obj_path)
     }
   } else if (is_missing_path(path_string)) {
-    message(sprintf("SKIP: %s - missing or invalid TEI path (%s)", openalex_id, path_string))
+    message(sprintf(
+      "SKIP: %s - missing or invalid TEI path (%s)",
+      openalex_id,
+      path_string
+    ))
   } else {
     if (!file.exists(path_string)) {
-      message(sprintf("FAIL: %s - TEI file not found at %s", openalex_id, path_string))
+      message(sprintf(
+        "FAIL: %s - TEI file not found at %s",
+        openalex_id,
+        path_string
+      ))
       return(list(openalex_id = openalex_id, object_path = NA_character_))
     }
 
@@ -131,15 +153,24 @@ read_and_cache_paper <- function(openalex_id, tei_path, extract_links = TRUE) {
         object_path <- obj_path
         message(sprintf("SUCCESS: %s - saved %s", openalex_id, obj_path))
       } else {
-        message(sprintf("FAIL: %s - read succeeded but file was not written: %s", openalex_id, obj_path))
+        message(sprintf(
+          "FAIL: %s - read succeeded but file was not written: %s",
+          openalex_id,
+          obj_path
+        ))
         paper_obj <- NULL
       }
     }
   }
 
   if (extract_links && !is.null(paper_obj)) {
-    osf_links <- tryCatch(metacheck::osf_links(paper_obj), error = function(e) NULL)
-    git_links <- tryCatch(metacheck::github_links(paper_obj), error = function(e) NULL)
+    osf_links <- tryCatch(metacheck::osf_links(paper_obj), error = function(e) {
+      NULL
+    })
+    git_links <- tryCatch(
+      metacheck::github_links(paper_obj),
+      error = function(e) NULL
+    )
 
     if (!is.null(osf_links) && nrow(osf_links) > 0) {
       osf_text <- paste(osf_links$text, collapse = "||")
@@ -160,7 +191,11 @@ read_and_cache_paper <- function(openalex_id, tei_path, extract_links = TRUE) {
 }
 
 papers_to_process <- data |>
-  filter(journal_short %in% c("ijet"), !is.na(tei_local_path), nzchar(tei_local_path)) |>
+  filter(
+    journal_short %in% c("ijet"),
+    !is.na(tei_local_path),
+    nzchar(tei_local_path)
+  ) |>
   select(openalex_id, tei_local_path)
 
 
@@ -175,20 +210,36 @@ if (nrow(papers_to_process) > 0) {
     end <- min(start + chunk_size - 1, nrow(papers_to_process))
     chunk <- papers_to_process[start:end, ]
 
-    chunk_results <- mclapply(seq_len(nrow(chunk)), function(i) {
-      row <- chunk[i, ]
-      read_and_cache_paper(row$openalex_id, row$tei_local_path)
-    }, mc.cores = min(n_cores, nrow(chunk)), mc.preschedule = FALSE)
+    chunk_results <- mclapply(
+      seq_len(nrow(chunk)),
+      function(i) {
+        row <- chunk[i, ]
+        read_and_cache_paper(row$openalex_id, row$tei_local_path)
+      },
+      mc.cores = min(n_cores, nrow(chunk)),
+      mc.preschedule = FALSE
+    )
 
     for (result in chunk_results) {
-      if (is.na(result$object_path) || !nzchar(result$object_path) || !file.exists(result$object_path)) {
-        message(sprintf("DB SKIP: %s - no valid object path", result$openalex_id))
+      if (
+        is.na(result$object_path) ||
+          !nzchar(result$object_path) ||
+          !file.exists(result$object_path)
+      ) {
+        message(sprintf(
+          "DB SKIP: %s - no valid object path",
+          result$openalex_id
+        ))
         next
       }
-      dbExecute(conn, "INSERT OR REPLACE INTO paper_objects (openalex_id, object_path, updated_at) VALUES (?, ?, datetime('now'))",
+      dbExecute(
+        conn,
+        "INSERT OR REPLACE INTO paper_objects (openalex_id, object_path, updated_at) VALUES (?, ?, datetime('now'))",
         params = list(result$openalex_id, result$object_path)
       )
-      dbExecute(conn, "INSERT OR REPLACE INTO paper_links (openalex_id, osf_links, git_links, updated_at) VALUES (?, ?, ?, datetime('now'))",
+      dbExecute(
+        conn,
+        "INSERT OR REPLACE INTO paper_links (openalex_id, osf_links, git_links, updated_at) VALUES (?, ?, ?, datetime('now'))",
         params = list(result$openalex_id, result$osf_links, result$git_links)
       )
     }
@@ -201,5 +252,3 @@ if (nrow(papers_to_process) > 0) {
 }
 
 print(papers_to_process)
-
-
