@@ -131,7 +131,7 @@ read_and_cache_paper <- function(openalex_id, tei_path, extract_links = TRUE) {
     if (!file.exists(path_string)) {
       message(sprintf(
         "FAIL: %s - TEI file not found at %s",
-        openalex_id,
+        openalex_id,git_links
         path_string
       ))
       return(list(openalex_id = openalex_id, object_path = NA_character_))

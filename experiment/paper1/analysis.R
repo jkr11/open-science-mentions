@@ -13,6 +13,7 @@ library(httr)
 library(jsonlite)
 library(progress)
 library(httpgd)
+source("../plotting.R")
 
 #setwd("experiment/paper1")
 
@@ -269,7 +270,8 @@ ggplot(
     x = "Erscheinungsjahr",
     color = "Journal"
   ) +
-  scale_fill_brewer(palette = "Pastel2") +
+  scale_color_cb() +
+  scale_fill_cb() +
   theme(
     legend.background = element_rect(fill = "white", colour = "black"),
     legend.position = c(0.125, 0.575),
@@ -309,6 +311,7 @@ ggplot(
     x = "Erscheinungsjahr",
     fill = "Journal"
   ) +
+    scale_fill_cb() +
   theme(
     legend.background = element_rect(fill = "white", colour = "black"),
     legend.position = c(0.125, 0.675),
@@ -360,6 +363,7 @@ ggplot(
     y = "Proportion",
     color = "Journal"
   ) +
+  scale_color_cb() +
   theme(legend.position = "bottom")
 
 ggplot(
@@ -378,6 +382,7 @@ ggplot(
     y = "Proportion",
     color = "Journal"
   ) +
+  scale_color_cb() +
   theme(legend.position = "bottom")
 
 

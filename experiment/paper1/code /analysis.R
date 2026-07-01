@@ -1,0 +1,435 @@
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(rcartocolor) # Colors
+library(flowchart)
+
+data <- read.csv("data/all_papers_data.csv") |>
+  filter(publication_year >= 2020, publication_year <= 2025) |>
+  select(
+    -pdf_local_path,
+    -tei_local_path,
+    -pdf_download_status,
+    -tei_process_status,
+    -oa_urls,
+    -doi,
+    -journal_id,
+    -journal_short,
+    -journal_long,
+    -osf_links,
+    -git_links,
+    -osf_links_raw,
+    -git_links_raw,
+    -all_osf_links,
+    -all_git_links
+  )
+
+write.csv2(data, 'data/all_papers_final.csv')
+
+data2 <- read.csv2('data/all_papers_final.csv') |>
+  select(-all_git_links_clean, -all_osf_links_clean)
+
+data3 <- read.csv2('data/all_papers_data_manual.csv') |>
+  filter(publication_year >= 2020, publication_year <= 2025) |>
+  mutate(
+    notes2 = as.character(notes2),
+    has_working_link = has_any_link
+  ) |>
+  mutate(
+    has_working_link = ifelse(
+      !is.na(notes2) &
+        str_detect(str_to_lower(str_trim(notes2)), "^(raus|not|no)"),
+      FALSE,
+      has_working_link
+    ),
+    has_working_git_link = has_git & has_working_link,
+    has_working_osf_link = has_osf & has_working_link
+  ) |>
+  mutate(
+    link_type = case_when(
+      (str_trim(notes2) == 'raus_not_open' |
+        str_trim(notes2) == "no_files" |
+        str_trim(notes2) == 'raus_missing' |
+        str_trim(notes2) == "not_open") ~ "not_open",
+      str_trim(notes2) == 'raus_leer' ~ "empty",
+      (str_trim(notes2) == 'raus_software' |
+        str_trim(notes2) == 'raus_r_package' |
+        str_trim(notes2) == 'raus_externe_software' |
+        str_trim(notes2) == 'raus_demoversion') ~ "software",
+      has_any_link ~ "working"
+    ),
+    link_type = factor(
+      link_type,
+      levels = c("working", "empty", "not_open", "software")
+    )
+  ) |>
+
+  mutate(
+    link_count_final = sum(has_working_link),
+    link_count_git = sum(has_working_git_link),
+    link_count_osf = sum(has_working_osf_link)
+  ) |>
+  mutate(
+    study_type = case_when(
+      notes2 == "review" ~ "review",
+      method_quanti == 1 & method_quali == 0 ~ "quantitative",
+      method_quanti == 0 & method_quali == 1 ~ "qualitative",
+      method_quanti == 1 & method_quali == 1 ~ "mixed"
+    )
+  )
+
+nrow(data3) # 15953
+nrow(data3 |> filter(has_working_link)) # 223
+
+safo <- data3
+
+excluded_counts <- safo |>
+  filter(!has_working_link) |>
+  filter(link_type != 'working') |>
+  filter(link_type != 111 | !is.na(link_type)) |>
+  count(link_type)
+
+excluded_label <- paste0(
+  "Papers assessed for eligibility:\n",
+  paste0(
+    excluded_counts$link_type,
+    ": n = ",
+    excluded_counts$n,
+    collapse = "\n"
+  )
+)
+
+journal_counts <- data3 |>
+  dplyr::count(journal_name, name = "n") |>
+  dplyr::arrange(desc(n))
+
+Journal_label <- paste0(
+  "Records identified from:\n",
+  paste0(
+    journal_counts$journal_name,
+    ": n = ",
+    journal_counts$n,
+    collapse = "\n"
+  )
+)
+
+journal_counts <- data3 |>
+  dplyr::count(journal_name, name = "n") |>
+  dplyr::mutate(
+    pct = 100 * n / sum(n)
+  ) |>
+  dplyr::arrange(desc(n))
+
+journal_counts
+
+safo |>
+  mutate(group = ifelse(link_type == "working", "working", "other")) |>
+  as_fc(label = Journal_label) |>
+  fc_filter(
+    has_any_link,
+    label = "Records identified with repository link:",
+    show_exc = TRUE,
+    label_exc = "No repository link:"
+  ) |>
+  fc_filter(
+    group == "working",
+    label = "Papers included",
+    show_exc = TRUE,
+    label_exc = excluded_label
+  ) |>
+  fc_draw()
+
+# This is an extra manual coding step here.
+data3new <- read.csv2('data/data_3_new.csv') |>
+  filter(publication_year >= 2020, publication_year <= 2025)
+
+nrow(data3new)
+
+data4 <- data3 |>
+  left_join(
+    data3new |> select(openalex_id, study_type),
+    by = "openalex_id",
+    suffix = c("", ".fix")
+  ) |>
+  mutate(
+    study_type = study_type.fix
+  ) |>
+  select(-study_type.fix)
+
+open_cols <- c(
+  "open_data",
+  "open_code",
+  "open_material",
+  "open_analysis",
+  "prerig"
+)
+
+data4 <- data4 |>
+  mutate(
+    across(all_of(open_cols), ~ ifelse(has_working_link == TRUE, ., 0))
+  )
+
+
+data5 <- data4 |>
+  filter(has_working_link) |>
+  select(
+    openalex_id,
+    study_type,
+    open_data,
+    open_code,
+    open_material,
+    open_analysis,
+    prerig,
+    link_count_final,
+    link_count_git,
+    link_count_osf
+  ) |>
+  mutate(
+    across(
+      c(open_data, open_code, open_material, open_analysis, prerig),
+      #everything(),
+      ~ replace_na(.x, 0)
+    ),
+  ) |>
+  pivot_longer(
+    cols = c(open_data, open_code, open_material, open_analysis, prerig),
+    names_to = "open_category",
+    values_to = "available"
+  )
+
+all(data4$available)
+
+data6 <- data5 |>
+  group_by(study_type, open_category) |>
+  mutate(available = as.numeric(na_if(available, "X"))) |>
+  summarise(
+    n_total = n(),
+    n_available = sum(available, na.rm = TRUE),
+    percent = 100 * n_available / n_total,
+    link_count_final = first(link_count_final),
+    .groups = "drop",
+  ) |>
+  mutate(
+    Perc_total = 100 * n_total / link_count_final,
+    open_category = factor(
+      open_category,
+      levels = c(
+        "prerig",
+        "open_code",
+        "open_data",
+        "open_material",
+        "open_analysis"
+      ),
+      labels = c(
+        "Preregistration",
+        "Open code",
+        "Open data",
+        "Open matelink_count_finalrial",
+        "Open analysis"
+      )
+    ),
+    study_type = factor(
+      study_type,
+      levels = c(
+        "quantitative",
+        "qualitative",
+        "mixed",
+        "review",
+        "conceptional",
+        "methodical"
+      )
+    )
+  )
+
+library(ggplot2)
+
+
+plot3a <- ggplot(
+  data6,
+  aes(y = reorder(study_type, -n_total), x = n_total)
+) +
+  geom_col(position = "dodge", alpha = 0.3) +
+  geom_text(
+    aes(label = paste0(Perc_total, " %")),
+    position = position_dodge(width = 0.8),
+    hjust = -0.2
+  ) +
+  theme_bw() +
+  scale_x_continuous(
+    expand = expansion(mult = c(0, 0.01)),
+    limits = c(0, 205)
+  ) +
+  labs(x = "Article type", y = "N Articles")
+plot3a
+
+plot3b <- ggplot(
+  data6 |> filter(!is.na(study_type)),
+  aes(x = open_category, y = percent, fill = open_category, na.rm = TRUE)
+) +
+  geom_col(position = "dodge", color = "black", alpha = 0.8) +
+  facet_wrap(~study_type) +
+  theme_bw() +
+  scale_fill_carto_d(name = "Open science practice", palette = "Safe") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+  labs(x = element_blank(), y = "Articles (%)")
+
+plot3b
+
+save_plot <- function(
+  plot,
+  filename,
+  dirs = c(
+    "results/figures",
+    "/run/user/1000/gvfs/smb-share:server=f11-file.fak11.lmu.de,share=20y-edu-spd-foerderschwerkpunkt_lernen/5. Artikel/2026 - Gebhardt Open Science and Data Sharing"
+  ),
+  formats = c("pdf", "png"),
+  ...
+) {
+  for (d in dirs) {
+    dir.create(d, recursive = TRUE, showWarnings = FALSE)
+
+    for (ext in formats) {
+      args <- list(
+        filename = file.path(d, paste0(filename, ".", ext)),
+        plot = plot,
+        ...
+      )
+
+      if (ext == "png" && is.null(args$dpi)) {
+        args$dpi <- 300
+      }
+
+      do.call(ggsave, args)
+    }
+  }
+
+  invisible(plot)
+}
+
+save_plot(plot3b, "plot3b")
+
+nrow(data4)
+
+library(brms)
+names(data4)
+
+unique(data4$journal_long)
+
+combined_df <- data4 |>
+  group_by(journal_name, publication_year) |>
+  summarise(
+    total_papers = n_distinct(openalex_id),
+    unique_linked_papers = sum(has_working_link, na.rm = TRUE),
+    proportion_linked = unique_linked_papers / total_papers,
+    .groups = "drop"
+  ) %>%
+  group_by(journal_name) %>%
+  mutate(
+    FigureName = str_glue("{journal_name} (N = {sum(total_papers)})")
+  ) %>%
+  ungroup() %>%
+  mutate(publication_year_centered = publication_year - 2020) |>
+  mutate(
+    journal_name = case_when(
+      journal_name ==
+        "International Journal of Educational Technology in Higher Education" ~ "IJETHE",
+      TRUE ~ journal_name
+    )
+  )
+
+unique(combined_df$journal_name)
+plot3c <- ggplot(
+  (combined_df |> filter(journal_name != "SAGE Open")),
+  #combined_df,
+  aes(x = publication_year, y = unique_linked_papers)
+) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2.5, show.legend = FALSE) +
+  facet_wrap(~journal_name) +
+  labs(
+    x = "Publication Year",
+    y = "Number of Papers with Link",
+  ) +
+  theme_bw(base_size = 13) +
+  scale_fill_carto_d(name = "Open science practice", palette = "Safe") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+plot3c
+save_plot(plot3c, 'plot3c')
+
+
+model <- brm(
+  unique_linked_papers | trials(total_papers) ~ publication_year_centered +
+    (publication_year_centered | journal_long),
+  data = combined_df,
+  family = binomial()
+)
+summary(model)
+
+plot4 <- ggplot(
+  combined_df,
+  aes(
+    x = publication_year,
+    y = unique_linked_papers,
+    fill = str_wrap(FigureName, 20)
+  )
+) +
+  geom_col(color = "white", linewidth = 0.2) +
+  scale_y_continuous(
+    name = "Anzahl verlinkter Paper",
+    limits = c(
+      0,
+      max(
+        aggregate(
+          unique_linked_papers ~ publication_year,
+          combined_df,
+          sum
+        )$unique_linked_papers
+      ) *
+        1.1
+    )
+  ) +
+  scale_x_continuous(breaks = unique(combined_df$publication_year)) +
+  labs(
+    title = "Vergleich: Anzahl der Artikel mit Repositoriums-Links",
+    subtitle = str_glue("2017-2025, N = {sum(combined_df$total_papers)}"),
+    x = "Erscheinungsjahr",
+    fill = "Journal"
+  ) +
+  scale_fill_carto_d(name = "Open science practice", palette = "Safe") +
+  theme(
+    legend.background = element_rect(fill = "white", colour = "black"),
+    legend.position = c(0.125, 0.675),
+    legend.box = "vertical",
+    legend.direction = "vertical",
+    panel.grid.minor = element_blank()
+  )
+
+plot4
+
+library(scales)
+
+plot5 <- ggplot(
+  combined_df,
+  aes(x = publication_year, y = proportion_linked, group = journal_long)
+) +
+  geom_line(aes(color = journal_long), alpha = 0.8, size = 2) +
+  stat_summary(
+    aes(group = 1),
+    fun = mean,
+    geom = "line",
+    color = "black",
+    size = 3
+  ) +
+  scale_x_continuous(breaks = unique(combined_df$publication_year)) +
+  scale_y_continuous(labels = label_percent(accuracy = 1)) +
+  labs(
+    title = "Proportion of Linked Papers Per Year by Journal",
+    x = "Publication Year",
+    y = "Proportion Linked",
+    color = "Journal"
+  ) +
+  scale_fill_carto_d(name = "Open science practice", palette = "Safe")
+
+plot5
+save_plot(plot5, 'plot5')
