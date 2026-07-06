@@ -280,7 +280,7 @@ save_plot <- function(
   filename,
   dirs = c(
     "results/figures",
-    "/run/user/1000/gvfs/smb-share:server=f11-file.fak11.lmu.de,share=20y-edu-spd-foerderschwerkpunkt_lernen/5. Artikel/2026 - Gebhardt Open Science and Data Sharing"
+    "/run/user/1000/gvfs/smb-share:server=f11-file.fak11.lmu.de,share=20y-edu-spd-foerderschwerkpunkt_lernen/5. Artikel/2026 - Gebhardt Open Science and Data Sharing/Abbildungen"
   ),
   formats = c("pdf", "png"),
   ...
@@ -358,12 +358,27 @@ plot3c
 save_plot(plot3c, 'plot3c')
 
 
-model <- brm(
-  unique_linked_papers | trials(total_papers) ~ publication_year_centered +
-    (publication_year_centered | journal_long),
-  data = combined_df,
-  family = binomial()
+control <- list(
+  adapt_delta = 0.99,
+  max_treedepth = 15
 )
+
+model <- brm(
+  unique_linked_papers | trials(total_papers) ~
+    publication_year_centered +
+    (publication_year_centered | journal_name),
+  data = combined_df,
+  family = binomial(),
+  iter = 6000,
+  warmup = 3000,
+  chains = 4,
+  cores = 4,
+  control = list(
+    adapt_delta = 0.999,
+    max_treedepth = 15
+  )
+)
+
 summary(model)
 
 plot4 <- ggplot(
@@ -433,3 +448,18 @@ plot5 <- ggplot(
 
 plot5
 save_plot(plot5, 'plot5')
+
+names(data4)
+
+country_data <- data4 %>%
+  filter(has_working_link) %>%
+  distinct(openalex_id, country) %>%
+  group_by(country) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(
+    n_total = sum(n),
+    perc = 100 * n / n_total
+  ) %>%
+  arrange(desc(n))
+
+print(country_data, n = 55)

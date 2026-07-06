@@ -88,6 +88,7 @@ library(httr2)
 library(tidyverse)
 library(httr2)
 library(purrr)
+source("../plotting.R")
 
 call_fastapi <- function(path) {
   req <- request("http://127.0.0.1:8000/process") |>
@@ -195,8 +196,8 @@ library(patchwork)
 
 p_top <- unique_stats %>%
   ggplot(aes(x = publication_year, y = proportion_linked)) +
-  geom_line(color = "#F8766D", linewidth = 1) +
-  geom_point(color = "#F8766D") +
+  geom_line(color = cb_pal[1], linewidth = 1) +
+  geom_point(color = cb_pal[1]) +
   scale_y_continuous(labels = scales::label_percent(accuracy = 0.1)) +
   labs(
     title = "Link Coverage Trends by Year",
@@ -211,8 +212,8 @@ p_top <- unique_stats %>%
 
 p_bottom <- unique_stats %>%
   ggplot(aes(x = publication_year, y = unique_linked_papers)) +
-  geom_line(color = "#00BFC4", linewidth = 1) +
-  geom_point(color = "#00BFC4") +
+  geom_line(color = cb_pal[2], linewidth = 1) +
+  geom_point(color = cb_pal[2]) +
   labs(
     x = "Year of Publication",
     y = "Count of papers with >= 1 link"
@@ -378,8 +379,8 @@ title = sprintf(title, length(mpdi_ed_papers))
 
 p_top <- unique_stats %>%
   ggplot(aes(x = publication_year, y = proportion_linked)) +
-  geom_line(color = "#F8766D", linewidth = 1) +
-  geom_point(color = "#F8766D") +
+  geom_line(color = cb_pal[1], linewidth = 1) +
+  geom_point(color = cb_pal[1]) +
   scale_y_continuous(labels = scales::label_percent(accuracy = 0.1)) +
   labs(
     title = title,
@@ -394,8 +395,8 @@ p_top <- unique_stats %>%
 
 p_bottom <- unique_stats %>%
   ggplot(aes(x = publication_year, y = unique_linked_papers)) +
-  geom_line(color = "#00BFC4", linewidth = 1) +
-  geom_point(color = "#00BFC4") +
+  geom_line(color = cb_pal[2], linewidth = 1) +
+  geom_point(color = cb_pal[2]) +
   labs(
     x = "Year of Publication",
     y = "Count of papers with >= 1 link"
