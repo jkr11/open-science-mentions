@@ -26,9 +26,7 @@ data <- read.csv("data/all_papers_data.csv") |>
 
 write.csv2(data, 'data/all_papers_final.csv')
 
-data2 <- read.csv2('data/all_papers_final.csv') |>
-  select(-all_git_links_clean, -all_osf_links_clean)
-
+# This is the first manual coding step (methods, notes2 etc)
 data3 <- read.csv2('data/all_papers_data_manual.csv') |>
   filter(publication_year >= 2020, publication_year <= 2025) |>
   mutate(
@@ -139,7 +137,7 @@ safo |>
   ) |>
   fc_draw()
 
-# This is an extra manual coding step here.
+# This is the second manual coding (data_3_new.csv) (I believe this still has 230, these are then filtered by the join to the correct 223.)
 data3new <- read.csv2('data/data_3_new.csv') |>
   filter(publication_year >= 2020, publication_year <= 2025)
 
