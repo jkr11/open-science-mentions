@@ -224,7 +224,7 @@ data6 <- data5 |>
         "Preregistration",
         "Open code",
         "Open data",
-        "Open matelink_count_finalrial",
+        "Open material",
         "Open analysis"
       )
     ),
@@ -283,6 +283,9 @@ save_plot <- function(
     "/run/user/1000/gvfs/smb-share:server=f11-file.fak11.lmu.de,share=20y-edu-spd-foerderschwerkpunkt_lernen/5. Artikel/2026 - Gebhardt Open Science and Data Sharing/Abbildungen"
   ),
   formats = c("pdf", "png"),
+  width = NULL,
+  height = NULL,
+  units = "cm",
   ...
 ) {
   for (d in dirs) {
@@ -292,13 +295,16 @@ save_plot <- function(
       args <- list(
         filename = file.path(d, paste0(filename, ".", ext)),
         plot = plot,
+        width = width,
+        height = height,
+        units = units,
         ...
       )
 
       if (ext == "png" && is.null(args$dpi)) {
         args$dpi <- 300
       }
-
+      args <- Filter(Negate(is.null), args)
       do.call(ggsave, args)
     }
   }
@@ -306,7 +312,7 @@ save_plot <- function(
   invisible(plot)
 }
 
-save_plot(plot3b, "plot3b")
+save_plot(plot3b, "plot3b", width = 20, height = 10)
 
 nrow(data4)
 
@@ -337,10 +343,9 @@ combined_df <- data4 |>
     )
   )
 
-unique(combined_df$journal_name)
+
 plot3c <- ggplot(
-  (combined_df |> filter(journal_name != "SAGE Open")),
-  #combined_df,
+  combined_df |> filter(journal_name != "SAGE Open"),
   aes(x = publication_year, y = unique_linked_papers)
 ) +
   geom_line(linewidth = 1) +
@@ -348,14 +353,20 @@ plot3c <- ggplot(
   facet_wrap(~journal_name) +
   labs(
     x = "Publication Year",
-    y = "Number of Papers with Link",
+    y = "Number of Papers with Link"
+  ) +
+  scale_x_continuous(
+    breaks = seq(
+      min(combined_df$publication_year, na.rm = TRUE),
+      max(combined_df$publication_year, na.rm = TRUE),
+      by = 2
+    )
   ) +
   theme_bw(base_size = 13) +
-  scale_fill_carto_d(name = "Open science practice", palette = "Safe") +
-  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+  scale_fill_carto_d(name = "Open science practice", palette = "Safe")
 
 plot3c
-save_plot(plot3c, 'plot3c')
+save_plot(plot3c, 'plot3c', width = 20, height = 10)
 
 
 control <- list(
