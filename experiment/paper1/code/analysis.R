@@ -1,8 +1,13 @@
-library(dplyr)
-library(stringr)
+# 1. Packages ------------------------------------------------------------------
+
+library(tidyverse)
 library(tidyr)
-library(rcartocolor) # Colors
+library(rcartocolor)
 library(flowchart)
+library(brms)
+library(scales)
+
+# 2. Data wrangling ------------------------------------------------------------
 
 data <- read.csv("data/all_papers_data.csv") |>
   filter(publication_year >= 2020, publication_year <= 2025) |>
@@ -26,7 +31,7 @@ data <- read.csv("data/all_papers_data.csv") |>
 
 write.csv2(data, 'data/all_papers_final.csv')
 
-# This is the first manual coding step (methods, notes2 etc)
+# 3. Manual coding of repository link content and methodology ------------------
 data3 <- read.csv2('data/all_papers_data_manual.csv') |>
   filter(publication_year >= 2020, publication_year <= 2025) |>
   mutate(
@@ -61,7 +66,6 @@ data3 <- read.csv2('data/all_papers_data_manual.csv') |>
       levels = c("working", "empty", "not_open", "software")
     )
   ) |>
-
   mutate(
     link_count_final = sum(has_working_link),
     link_count_git = sum(has_working_git_link),
@@ -76,8 +80,20 @@ data3 <- read.csv2('data/all_papers_data_manual.csv') |>
     )
   )
 
+# 4. Overview of paper selection process ---------------------------------------
 nrow(data3) # 15953
 nrow(data3 |> filter(has_working_link)) # 223
+
+# 4.1 Flowchart for canva numbers
+
+journal_counts <- data3 |>
+  dplyr::count(journal_name, name = "n") |>
+  dplyr::mutate(
+    pct = 100 * n / sum(n)
+  ) |>
+  dplyr::arrange(desc(n))
+
+journal_counts
 
 safo <- data3
 
@@ -97,10 +113,6 @@ excluded_label <- paste0(
   )
 )
 
-journal_counts <- data3 |>
-  dplyr::count(journal_name, name = "n") |>
-  dplyr::arrange(desc(n))
-
 Journal_label <- paste0(
   "Records identified from:\n",
   paste0(
@@ -110,16 +122,6 @@ Journal_label <- paste0(
     collapse = "\n"
   )
 )
-
-journal_counts <- data3 |>
-  dplyr::count(journal_name, name = "n") |>
-  dplyr::mutate(
-    pct = 100 * n / sum(n)
-  ) |>
-  dplyr::arrange(desc(n))
-
-journal_counts
-
 safo |>
   mutate(group = ifelse(link_type == "working", "working", "other")) |>
   as_fc(label = Journal_label) |>
@@ -137,8 +139,10 @@ safo |>
   ) |>
   fc_draw()
 
-# This is the second manual coding (data_3_new.csv) (I believe this still has 230, these are then filtered by the join to the correct 223.)
-data3new <- read.csv2('data/data_3_new.csv') |>
+
+# 5. Manual coding of repository content type ----------------------------------
+
+data3new <- read.csv2('data/data_3_new.csv') |> ## This file is the second manual coding (data_3_new.csv)
   filter(publication_year >= 2020, publication_year <= 2025)
 
 nrow(data3new)
@@ -162,13 +166,10 @@ open_cols <- c(
   "prerig"
 )
 
-data4 <- data4 |>
+data5 <- data4 |>
   mutate(
     across(all_of(open_cols), ~ ifelse(has_working_link == TRUE, ., 0))
-  )
-
-
-data5 <- data4 |>
+  ) |>
   filter(has_working_link) |>
   select(
     openalex_id,
@@ -185,7 +186,6 @@ data5 <- data4 |>
   mutate(
     across(
       c(open_data, open_code, open_material, open_analysis, prerig),
-      #everything(),
       ~ replace_na(.x, 0)
     ),
   ) |>
@@ -194,8 +194,6 @@ data5 <- data4 |>
     names_to = "open_category",
     values_to = "available"
   )
-
-all(data4$available)
 
 data6 <- data5 |>
   group_by(study_type, open_category) |>
@@ -239,39 +237,7 @@ data6 <- data5 |>
     )
   )
 
-library(ggplot2)
-
-
-plot3a <- ggplot(
-  data6,
-  aes(y = reorder(study_type, -n_total), x = n_total)
-) +
-  geom_col(position = "dodge", alpha = 0.3) +
-  geom_text(
-    aes(label = paste0(Perc_total, " %")),
-    position = position_dodge(width = 0.8),
-    hjust = -0.2
-  ) +
-  theme_bw() +
-  scale_x_continuous(
-    expand = expansion(mult = c(0, 0.01)),
-    limits = c(0, 205)
-  ) +
-  labs(x = "Article type", y = "N Articles")
-plot3a
-
-plot3b <- ggplot(
-  data6 |> filter(!is.na(study_type)),
-  aes(x = open_category, y = percent, fill = open_category, na.rm = TRUE)
-) +
-  geom_col(position = "dodge", color = "black", alpha = 0.8) +
-  facet_wrap(~study_type) +
-  theme_bw() +
-  scale_fill_carto_d(name = "Open science practice", palette = "Safe") +
-  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
-  labs(x = element_blank(), y = "Articles (%)")
-
-plot3b
+# 6. Plots ---------------------------------------------------------------------
 
 save_plot <- function(
   plot,
@@ -303,21 +269,12 @@ save_plot <- function(
         args$dpi <- 300
       }
       args <- Filter(Negate(is.null), args)
-      do.call(ggsave, args)
+      do.call(ggplot2::ggsave, args)
     }
   }
 
   invisible(plot)
 }
-
-save_plot(plot3b, "plot3b", width = 20, height = 10)
-
-nrow(data4)
-
-library(brms)
-names(data4)
-
-unique(data4$journal_long)
 
 combined_df <- data4 |>
   group_by(journal_name, publication_year) |>
@@ -341,6 +298,37 @@ combined_df <- data4 |>
     )
   )
 
+plot3a <- ggplot(
+  data6,
+  aes(y = reorder(study_type, -n_total), x = n_total)
+) +
+  geom_col(position = "dodge", alpha = 0.3) +
+  geom_text(
+    aes(label = paste0(Perc_total, " %")),
+    position = position_dodge(width = 0.8),
+    hjust = -0.2
+  ) +
+  theme_bw() +
+  scale_x_continuous(
+    expand = expansion(mult = c(0, 0.01)),
+    limits = c(0, 205)
+  ) +
+  labs(x = "Article type", y = "N Articles")
+plot3a
+
+plot3b <- ggplot(
+  data6 |> filter(!is.na(study_type)),
+  aes(x = open_category, y = percent, fill = open_category, na.rm = TRUE)
+) +
+  geom_col(position = "dodge", color = "black", alpha = 0.8) +
+  facet_wrap(~study_type) +
+  theme_bw() +
+  scale_fill_carto_d(name = "Open science practice", palette = "Safe") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+  labs(x = element_blank(), y = "Articles (%)")
+
+plot3b
+save_plot(plot3b, "plot3b", width = 20, height = 10)
 
 plot3c <- ggplot(
   combined_df |> filter(journal_name != "SAGE Open"),
@@ -360,12 +348,11 @@ plot3c <- ggplot(
       by = 2
     )
   ) +
-  theme_bw(base_size = 13) +
+  theme_bw() +
   scale_fill_carto_d(name = "Open science practice", palette = "Safe")
 
 plot3c
 save_plot(plot3c, 'plot3c', width = 20, height = 10)
-
 
 control <- list(
   adapt_delta = 0.99,
@@ -381,7 +368,7 @@ model <- brm(
   iter = 6000,
   warmup = 3000,
   chains = 4,
-  cores = 4,
+  cores = 16,
   control = list(
     adapt_delta = 0.999,
     max_treedepth = 15
@@ -389,6 +376,8 @@ model <- brm(
 )
 
 summary(model)
+
+## Plot 4 ----
 
 plot4 <- ggplot(
   combined_df,
@@ -431,13 +420,13 @@ plot4 <- ggplot(
 
 plot4
 
-library(scales)
+# Plot 5 ----
 
 plot5 <- ggplot(
   combined_df,
-  aes(x = publication_year, y = proportion_linked, group = journal_long)
+  aes(x = publication_year, y = proportion_linked, group = journal_name)
 ) +
-  geom_line(aes(color = journal_long), alpha = 0.8, size = 2) +
+  geom_line(aes(color = journal_name), alpha = 0.8, size = 2) +
   stat_summary(
     aes(group = 1),
     fun = mean,
@@ -456,19 +445,62 @@ plot5 <- ggplot(
   scale_fill_carto_d(name = "Open science practice", palette = "Safe")
 
 plot5
-save_plot(plot5, 'plot5')
 
-names(data4)
+# 6. Country analysis ----------------------------------------------------------
 
-country_data <- data4 %>%
-  filter(has_working_link) %>%
-  distinct(openalex_id, country) %>%
-  group_by(country) %>%
-  summarise(n = n(), .groups = "drop") %>%
+country_data <- data4 |>
+  filter(has_working_link) |>
+  distinct(openalex_id, country) |>
+  group_by(country) |>
+  summarise(n = n(), .groups = "drop") |>
   mutate(
     n_total = sum(n),
     perc = 100 * n / n_total
-  ) %>%
+  ) |>
   arrange(desc(n))
 
 print(country_data, n = 55)
+
+# 7. Categories ----------------------------------------------------------------
+
+## 7.1 Iterations of ChatGPT model 5.5 thinking ----
+
+data_2 <- list.files(
+  # Read all iterations
+  "data/cat_runs",
+  pattern = ".csv",
+  full.names = TRUE
+) |>
+  set_names(basename) |>
+  map(read.csv) |>
+  list_rbind(names_to = "iteration") |>
+  pivot_longer(cols = C1:C14, names_to = "Category", values_to = "Code") |>
+  # Which categories were rated most?
+  count(OpenAlex_ID, Category, wt = Code, name = "Rating") |>
+  # Only >= 70% IRR
+  filter(Rating > 6) |>
+  right_join(data3new, by = c("OpenAlex_ID" = "openalex_id")) |>
+  filter(!is.na(Category)) |>
+  mutate(
+    Category = recode(
+      Category,
+      "C1" = "EdTech & AI",
+      "C2" = "STEM Education",
+      "C3" = "Higher Education",
+      "C4" = "Assessment",
+      "C5" = "Learning Psychology",
+      "C6" = "Teacher Education",
+      "C7" = "Inclusion & Diversity",
+      "C8" = "Digital Learning",
+      "C9" = "Curriculum & Instruction",
+      "C10" = "Open Science",
+      "C11" = "Policy & Systems",
+      "C12" = "Literacy & Language",
+      "C13" = "Informal Learning",
+      "C14" = "Child Development"
+    )
+  )
+
+## 7.2 Overview of Categories ----
+
+table(data_2$Category)
