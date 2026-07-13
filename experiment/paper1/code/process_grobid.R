@@ -1,3 +1,7 @@
+# This script processes the TEI files from GROBID into R tables for metacheck in parallel. Note that this is only reproducible if the TEI files are available in the paths specified in the index, i.e. the downloads were run.
+
+# This is also supposed to be run from experiment/paper1 as this is the osf version.
+
 library(RSQLite)
 library(dplyr)
 library(tidyverse)
@@ -6,7 +10,7 @@ library(tidyr)
 library(metacheck)
 library(parallel)
 
-db_index_path <- "db/index.merged.db"
+db_index_path <- "example_path.db" # "../../db/index.merged.db"
 
 
 conn <- dbConnect(RSQLite::SQLite(), db_index_path)
@@ -22,26 +26,6 @@ dbExecute(
 );"
 )
 
-# aero_ids <- data |>
-#   filter(journal_short == "cog") |>
-#   pull(openalex_id)
-#
-# if (length(aero_ids) > 0) {
-#   # Use parameterized query to avoid SQL injection and syntax errors
-#   id_list <- paste0("'", aero_ids, "'", collapse = ", ")
-#
-#   query <- sprintf(
-#     "UPDATE paper_objects
-#      SET object_path = '',
-#          updated_at = '%s'
-#      WHERE openalex_id IN (%s);",
-#     as.character(Sys.time()),
-#     id_list
-#   )
-#
-#   dbExecute(conn, query)
-# }
-
 dbExecute(
   conn,
   "CREATE TABLE IF NOT EXISTS paper_links (
@@ -56,10 +40,7 @@ paper_cache <- dbGetQuery(
   "SELECT openalex_id, object_path FROM paper_objects;"
 )
 dbDisconnect(conn)
-# some of the doi links were wrong in the db.
 data <- data_all |>
-  # mutate(doi = str_remove(doi, "^https?://(dx\\.)?doi\\.org/")) |>
-  # mutate(doi = str_remove(doi, "^https?://(dx\\.)?doi\\.org")) |>
   mutate(tei_id = tei_local_path) |>
   mutate(
     tei_local_path = if_else(
@@ -71,15 +52,8 @@ data <- data_all |>
 
 journal_map <- tribble(
   ~short , ~id           , ~full_name                                                                              ,
-  # "ds", "S4210217710", "Deutsche Schule",
-  # "ze", "S40639335", "Zeitschrift für Erziehungswissenschaften",
-  # "zp", "S63113783", "Zeitschrift für Pädagogik",
   "mdpi" , "S2738008561" , "Education Sciences"                                                                    ,
-  # "epr", "S187318745", "Educational Psychology Review",
-  # "ethe", "S4210201537", "Educational Technology in Higher Education",
-  # "etre", "S114840262", "Educational Technology Research and Development",
   "fe"   , "S2596526815" , "Frontiers in Education"                                                                ,
-  # "esp", "S4306509262", "Empirische Sonderpädagogik",
   "cog"  , "S2764918247" , "COGENT EDUCATION"                                                                      ,
   "flr"  , "S4210191100" , "Frontline Learning Research"                                                           ,
   "aero" , "S2738252563" , "AERA Open"                                                                             ,

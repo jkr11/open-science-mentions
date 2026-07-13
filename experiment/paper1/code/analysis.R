@@ -6,7 +6,6 @@ library(rcartocolor)
 library(flowchart)
 library(brms)
 library(scales)
-
 # 2. Data wrangling ------------------------------------------------------------
 
 data <- read.csv("data/all_papers_data.csv") |>
@@ -21,18 +20,17 @@ data <- read.csv("data/all_papers_data.csv") |>
     -journal_id,
     -journal_short,
     -journal_long,
-    -osf_links,
-    -git_links,
     -osf_links_raw,
     -git_links_raw,
     -all_osf_links,
     -all_git_links
   )
 
-write.csv2(data, 'data/all_papers_final.csv')
-
+write.csv2(data, 'data/all_papers_final.csv') # Here, more data is manually coded.
+ 
 # 3. Manual coding of repository link content and methodology ------------------
-data3 <- read.csv2('data/all_papers_data_manual.csv') |>
+
+data3 <- read.csv2("data/all_papers_manual_final.csv") |>
   filter(publication_year >= 2020, publication_year <= 2025) |>
   mutate(
     notes2 = as.character(notes2),
